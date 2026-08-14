@@ -1,0 +1,132 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@450;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+:root {
+  --background: #0b1326;
+  --on-background: #dae2fd;
+  --primary: #d0bcff;
+  --primary-fixed: #e9ddff;
+  --primary-fixed-dim: #d0bcff;
+  --inverse-primary: #6d3bd7;
+  --secondary: #4cd7f6;
+  --tertiary: #ffafd3;
+  --surface: #0b1326;
+  --surface-dim: #0b1326;
+  --surface-container-lowest: #060e20;
+  --surface-container-low: #131b2e;
+  --surface-container: #171f33;
+  --surface-container-high: #222a3d;
+  --on-surface: #dae2fd;
+  --on-surface-variant: #cbc3d7;
+  --outline: #958ea0;
+  --outline-variant: #494454;
+  --editor-gap: 32px;
+  --margin-page: 64px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background-color: var(--background);
+  color: var(--on-background);
+  overflow-x: hidden;
+  font-family: 'Inter', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Glassmorphism Utilities */
+.glass-panel {
+  background: rgba(11, 19, 38, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-panel-hover:hover {
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+}
+
+/* Ambient Background */
+.ambient-bg {
+  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1;
+  background: radial-gradient(circle at 50% 0%, rgba(208, 188, 255, 0.05) 0%, transparent 50%),
+              radial-gradient(circle at 80% 80%, rgba(76, 215, 246, 0.03) 0%, transparent 40%);
+  pointer-events: none;
+}
+
+/* Aurora Shimmer Effect */
+.aurora-bg {
+  position: fixed; top: -50%; left: -50%; width: 200%; height: 200%; z-index: -2;
+  background: conic-gradient(from 0deg at 50% 50%, rgba(109, 59, 215, 0.1) 0deg, rgba(76, 215, 246, 0.1) 120deg, rgba(227, 100, 167, 0.1) 240deg, rgba(109, 59, 215, 0.1) 360deg);
+  filter: blur(100px);
+  animation: aurora-spin 20s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes aurora-spin { 100% { transform: rotate(360deg); } }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+
+/* Document Scanning Bar */
+.doc-scanner {
+  position: absolute; top: 0; left: 0; width: 100%; height: 40px;
+  background: linear-gradient(to bottom, rgba(76, 215, 246, 0), rgba(76, 215, 246, 0.1) 90%, rgba(76, 215, 246, 0.8));
+  border-bottom: 2px solid var(--secondary);
+  box-shadow: 0 4px 15px rgba(76, 215, 246, 0.3);
+  animation: doc-scan 4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  opacity: 0; z-index: 20; pointer-events: none;
+}
+
+@keyframes doc-scan {
+  0% { top: 0%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* Magic Pulse */
+.magic-pulse { animation: magic-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+@keyframes magic-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; filter: drop-shadow(0 0 5px var(--primary)); }
+  50% { transform: scale(1.1); opacity: 0.8; filter: drop-shadow(0 0 15px var(--primary)); }
+}
+
+.streaming-text span {
+  opacity: 0; transform: translateY(-5px);
+  animation: waterfallIn 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes waterfallIn { to { opacity: 1; transform: translateY(0); } }
+
+/* Button Glow */
+.btn-primary-glow {
+  background-color: var(--inverse-primary); color: white; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  position: relative; overflow: hidden; padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer;
+}
+.btn-primary-glow:hover { box-shadow: 0 0 20px rgba(109, 59, 215, 0.6), inset 0 0 10px rgba(255,255,255,0.2); transform: scale(1.02); }
+
+/* Utility layout */
+.app-container { flex-grow: 1; display: flex; flex-direction: column; align-items: center; width: 100%; }
+.nav-header { width: 100%; padding: 16px 64px; display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1); }
+.nav-title { font-size: 24px; font-weight: 600; color: var(--primary); }
+
+.drop-zone {
+  width: 100%; max-width: 800px; height: 320px; border: 2px dashed var(--outline-variant); border-radius: 12px;
+  display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer;
+  transition: all 0.3s ease; margin: 64px auto; text-align: center; color: var(--on-surface-variant);
+}
+.drop-zone:hover { border-color: var(--primary); color: var(--primary); }
+.drop-zone.active { border-color: var(--secondary); background: rgba(76, 215, 246, 0.05); }
+
+.workspace {
+  display: flex; width: 100%; max-width: 1440px; padding: 32px 64px; gap: 32px; height: calc(100vh - 100px);
+}
+.pane {
+  flex: 1; display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; position: relative;
+}
+.pane-header { padding: 16px 24px; background: rgba(19, 27, 46, 0.5); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--secondary); display: flex; justify-content: space-between; }
+.pane-content { padding: 24px; overflow-y: auto; flex: 1; background: rgba(255,255,255,0.02); font-family: 'JetBrains Mono', monospace; font-size: 14px; line-height: 1.7; }

@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LuminaConvert - Elegant Document to Markdown Tool</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed-variant": "#85145a",
+                        "on-secondary-fixed-variant": "#004e5c",
+                        "on-tertiary-fixed": "#3d0026",
+                        "on-primary": "#3c0091",
+                        "on-error-container": "#ffdad6",
+                        "on-error": "#690005",
+                        "primary-fixed": "#e9ddff",
+                        "primary-fixed-dim": "#d0bcff",
+                        "on-tertiary-container": "#560038",
+                        "surface-container-highest": "#2d3449",
+                        "on-secondary-fixed": "#001f26",
+                        "background": "#0b1326",
+                        "on-surface": "#dae2fd",
+                        "tertiary-container": "#e364a7",
+                        "surface-bright": "#31394d",
+                        "on-primary-container": "#340080",
+                        "on-surface-variant": "#cbc3d7",
+                        "outline": "#958ea0",
+                        "on-background": "#dae2fd",
+                        "secondary": "#4cd7f6",
+                        "tertiary-fixed": "#ffd8e7",
+                        "primary": "#d0bcff",
+                        "surface": "#0b1326",
+                        "surface-container-low": "#131b2e",
+                        "error": "#ffb4ab",
+                        "on-secondary": "#003640",
+                        "secondary-container": "#03b5d3",
+                        "on-tertiary": "#620040",
+                        "on-secondary-container": "#00424e",
+                        "inverse-surface": "#dae2fd",
+                        "inverse-primary": "#6d3bd7",
+                        "secondary-fixed-dim": "#4cd7f6",
+                        "on-primary-fixed-variant": "#5516be",
+                        "surface-tint": "#d0bcff",
+                        "surface-variant": "#2d3449",
+                        "surface-dim": "#0b1326",
+                        "surface-container": "#171f33",
+                        "tertiary": "#ffafd3",
+                        "surface-container-high": "#222a3d",
+                        "surface-container-lowest": "#060e20",
+                        "error-container": "#93000a",
+                        "tertiary-fixed-dim": "#ffafd3",
+                        "on-primary-fixed": "#23005c",
+                        "outline-variant": "#494454",
+                        "primary-container": "#a078ff",
+                        "secondary-fixed": "#acedff",
+                        "inverse-on-surface": "#283044"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-page": "64px",
+                        "container-max": "1440px",
+                        "gutter": "24px",
+                        "unit": "8px",
+                        "editor-gap": "32px"
+                    },
+                    "fontFamily": {
+                        "code-md": [
+                            "JetBrains Mono"
+                        ],
+                        "display-lg": [
+                            "Inter"
+                        ],
+                        "label-caps": [
+                            "JetBrains Mono"
+                        ],
+                        "headline-md": [
+                            "Inter"
+                        ],
+                        "body-rt": [
+                            "Inter"
+                        ]
+                    },
+                    "fontSize": {
+                        "code-md": [
+                            "14px",
+                            {
+                                "lineHeight": "1.7",
+                                "fontWeight": "450"
+                            }
+                        ],
+                        "display-lg": [
+                            "48px",
+                            {
+                                "lineHeight": "1.1",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "700"
+                            }
+                        ],
+                        "label-caps": [
+                            "12px",
+                            {
+                                "lineHeight": "1",
+                                "letterSpacing": "0.1em",
+                                "fontWeight": "600"
+                            }
+                        ],
+                        "headline-md": [
+                            "24px",
+                            {
+                                "lineHeight": "1.3",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "600"
+                            }
+                        ],
+                        "body-rt": [
+                            "16px",
+                            {
+                                "lineHeight": "1.6",
+                                "letterSpacing": "0em",
+                                "fontWeight": "400"
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    </script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=JetBrains+Mono:wght@450;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            background-color: theme('colors.background');
+            color: theme('colors.on-background');
+            overflow-x: hidden;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Glassmorphism Utilities */
+        .glass-panel {
+            background: rgba(11, 19, 38, 0.5); /* 50% opacity midnight blue (surface-dim) */
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1); /* Ghost Border */
+        }
+
+        .glass-panel-hover:hover {
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.15); /* Soft secondary accent glow - adapting slightly to theme */
+        }
+
+        /* Ambient Background */
+        .ambient-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            background: radial-gradient(circle at 50% 0%, rgba(208, 188, 255, 0.05) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 80%, rgba(76, 215, 246, 0.03) 0%, transparent 40%);
+            pointer-events: none;
+        }
+
+        /* Aurora Shimmer Effect */
+        .aurora-bg {
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            z-index: -2;
+            background: conic-gradient(from 0deg at 50% 50%, rgba(109, 59, 215, 0.1) 0deg, rgba(76, 215, 246, 0.1) 120deg, rgba(227, 100, 167, 0.1) 240deg, rgba(109, 59, 215, 0.1) 360deg);
+            filter: blur(100px);
+            animation: aurora-spin 20s linear infinite;
+            pointer-events: none;
+        }
+        
+        @keyframes aurora-spin {
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Beam Animation for Drop Zone */
+        .scan-beam {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, theme('colors.primary'), transparent);
+            box-shadow: 0 0 10px theme('colors.primary');
+            animation: scan 2s linear infinite;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .drop-zone:hover .scan-beam {
+            opacity: 1;
+        }
+
+        @keyframes scan {
+            0% { top: 0%; }
+            100% { top: 100%; }
+        }
+        
+        /* Document Scanning Bar */
+        .doc-scanner {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 40px;
+            background: linear-gradient(to bottom, rgba(76, 215, 246, 0), rgba(76, 215, 246, 0.1) 90%, rgba(76, 215, 246, 0.8));
+            border-bottom: 2px solid theme('colors.secondary');
+            box-shadow: 0 4px 15px rgba(76, 215, 246, 0.3);
+            animation: doc-scan 4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            opacity: 0;
+            z-index: 20;
+            pointer-events: none;
+        }
+
+        @keyframes doc-scan {
+            0% { top: 0%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+        
+        .pulse-border {
+            animation: pulse-border 2s infinite;
+        }
+
+        @keyframes pulse-border {
+            0% { border-color: rgba(255, 255, 255, 0.1); }
+            50% { border-color: theme('colors.primary-fixed-dim'); }
+            100% { border-color: rgba(255, 255, 255, 0.1); }
+        }
+        
+        /* Magic Pulse */
+        .magic-pulse {
+            animation: magic-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes magic-pulse {
+            0%, 100% { transform: scale(1); opacity: 1; filter: drop-shadow(0 0 5px theme('colors.primary')); }
+            50% { transform: scale(1.1); opacity: 0.8; filter: drop-shadow(0 0 15px theme('colors.primary')); }
+        }
+
+        /* Streaming Text Effect */
+        .streaming-text span {
+            opacity: 0;
+            transform: translateY(-5px);
+            animation: waterfallIn 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes waterfallIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Primary Button Glow & Magnetic */
+        .btn-primary-glow {
+            background-color: theme('colors.inverse-primary');
+            color: white;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn-primary-glow::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 60%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        
+        .btn-primary-glow:hover {
+            box-shadow: 0 0 20px rgba(109, 59, 215, 0.6), inset 0 0 10px rgba(255,255,255,0.2);
+            transform: scale(1.02);
+        }
+        
+        .btn-primary-glow:hover::after {
+            opacity: 1;
+        }
+
+        /* Staggered Reveal */
+        .reveal-item {
+            opacity: 0;
+            transform: translateY(30px);
+            animation: revealUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .reveal-delay-1 { animation-delay: 0.1s; }
+        .reveal-delay-2 { animation-delay: 0.2s; }
+        .reveal-delay-3 { animation-delay: 0.3s; }
+
+        @keyframes revealUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @media (prefers-reduced-motion: reduce) {
+            .aurora-bg, .scan-beam, .doc-scanner, .streaming-text span, .magic-pulse, .reveal-item {
+                animation: none;
+                transform: none;
+                opacity: 1;
+                transition: none;
+            }
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col relative">
+<div class="aurora-bg"></div>
+<div class="ambient-bg"></div>
+<!-- Shared Component: TopNavBar -->
+<header class="bg-surface/50 backdrop-blur-xl border-b border-white/10 shadow-sm docked full-width top-0 sticky z-50">
+<div class="flex justify-between items-center w-full px-margin-page py-4 max-w-container-max mx-auto">
+<div class="flex items-center gap-2">
+<span class="font-display-lg text-headline-md text-primary tracking-tighter cursor-pointer">LuminaConvert</span>
+</div>
+<nav class="hidden md:flex gap-8 items-center font-label-caps text-label-caps">
+<a class="text-primary font-bold border-b-2 border-primary pb-1 transition-all duration-200 active:scale-95" href="#">How it works</a>
+<a class="text-on-surface-variant font-medium hover:text-secondary transition-colors duration-300 transition-all duration-200 active:scale-95" href="#">Pricing</a>
+<a class="text-on-surface-variant font-medium hover:text-secondary transition-colors duration-300 transition-all duration-200 active:scale-95" href="#">API</a>
+</nav>
+<button class="btn-primary-glow font-label-caps text-label-caps px-4 py-2 rounded-lg transition-all duration-200 active:scale-95 hidden md:block magnetic-btn">
+                Quick Start
+            </button>
+<button class="md:hidden text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-2xl">menu</span>
+</button>
+</div>
+</header>
+<!-- Main Content -->
+<main class="flex-grow flex flex-col items-center px-4 md:px-margin-page py-12 md:py-24 max-w-container-max mx-auto w-full gap-16">
+<!-- Hero & Drop Zone -->
+<section class="w-full flex flex-col items-center text-center gap-8 max-w-3xl z-10" id="upload-section">
+<div class="space-y-4 reveal-item reveal-delay-1">
+<h1 class="font-display-lg text-display-lg text-on-surface bg-clip-text text-transparent bg-gradient-to-r from-on-surface to-primary-fixed">
+                    Transform Documents into Clean Markdown
+                </h1>
+<p class="font-body-rt text-body-rt text-on-surface-variant max-w-xl mx-auto">
+                    Drag and drop your .docx, .pdf, or .txt files. Our local-first engine parses complex formatting into pristine, developer-ready markdown instantly.
+                </p>
+</div>
+<!-- Upload Zone -->
+<div class="drop-zone relative w-full h-64 md:h-80 glass-panel glass-panel-hover rounded-xl flex flex-col items-center justify-center border-dashed border-2 border-outline-variant hover:border-primary transition-colors duration-300 cursor-pointer overflow-hidden group reveal-item reveal-delay-2" onclick="startConversion()">
+<div class="scan-beam"></div>
+<div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-xl"></div>
+<div class="z-10 flex flex-col items-center gap-4 text-on-surface-variant group-hover:text-primary transition-colors duration-300">
+<span class="material-symbols-outlined text-6xl font-light upload-icon" style="font-variation-settings: 'FILL' 0;">upload_file</span>
+<div class="font-headline-md text-headline-md">Drop file here or click to browse</div>
+<div class="font-label-caps text-label-caps text-outline group-hover:text-primary-fixed-dim transition-colors">Supports .DOCX, .PDF, .TXT</div>
+<button class="mt-2 btn-primary-glow px-4 py-2 rounded-lg font-label-caps text-label-caps text-white" onclick="event.stopPropagation(); startConversion();">Simulate Conversion</button>
+</div>
+<input accept=".docx,.pdf,.txt" class="hidden" id="file-input" type="file"/>
+</div>
+</section>
+<!-- Workspace (Hidden initially) -->
+<section class="w-full hidden flex-col gap-editor-gap z-10 opacity-0 transition-opacity duration-1000" id="workspace-section">
+<div class="flex items-center justify-between w-full mb-2">
+<div class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">description</span>
+                    Document Parser
+                </div>
+<div class="flex gap-4">
+<button class="glass-panel text-on-surface-variant hover:text-primary px-4 py-2 rounded-lg font-label-caps text-label-caps flex items-center gap-2 transition-all duration-200 active:scale-95 magnetic-btn" onclick="resetView()">
+<span class="material-symbols-outlined text-sm">restart_alt</span> New Conversion
+                    </button>
+<button class="btn-primary-glow px-4 py-2 rounded-lg font-label-caps text-label-caps flex items-center gap-2 transition-all duration-200 active:scale-95 magnetic-btn">
+<span class="material-symbols-outlined text-sm">download</span> Download .md
+                    </button>
+</div>
+</div>
+<div class="flex flex-col md:flex-row w-full h-[600px] gap-editor-gap relative">
+<!-- Source Pane -->
+<div class="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden relative">
+<div class="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50 z-30">
+<span class="font-label-caps text-label-caps text-on-surface-variant">Original Document.docx</span>
+<span class="material-symbols-outlined text-outline text-sm">visibility</span>
+</div>
+<div class="p-8 overflow-y-auto font-body-rt text-body-rt text-on-surface/80 bg-white/5 flex-grow relative" id="source-pane-content">
+<div class="doc-scanner hidden" id="doc-scanner"></div>
+<!-- Simulated Source Content -->
+<h1 class="text-2xl font-bold mb-4 text-on-surface">Project Alpha Requirements</h1>
+<h2 class="text-xl font-semibold mb-2 mt-6 text-on-surface">1. Introduction</h2>
+<p class="mb-4">This document outlines the core functional requirements for the new Lumina-v2 engine integration. The primary goal is to ensure high-fidelity conversion of complex nested structures.</p>
+<h2 class="text-xl font-semibold mb-2 mt-6 text-on-surface">2. Data Structures</h2>
+<ul class="list-disc pl-6 mb-4 space-y-2">
+<li><strong>Headers:</strong> Must retain hierarchy (H1-H6).</li>
+<li><strong>Tables:</strong> Complex tables should be flattened into standard markdown pipe tables.</li>
+<li><strong>Images:</strong> Extract and reference via local path or placeholder.</li>
+</ul>
+<div class="bg-surface-container p-4 rounded-lg border border-outline-variant my-6">
+<p class="italic text-on-surface-variant">Note: Ensure backwards compatibility with v1 API endpoints during the transition phase.</p>
+</div>
+</div>
+</div>
+<!-- Transformation Indicator (Desktop) -->
+<div class="hidden md:flex flex-col justify-center items-center px-2 z-20">
+<div class="w-12 h-12 rounded-full glass-panel flex items-center justify-center border border-primary/30 relative">
+<div class="absolute inset-0 rounded-full border border-secondary/50 animate-ping opacity-20"></div>
+<span class="material-symbols-outlined text-primary animate-pulse" id="magic-icon">magic_button</span>
+</div>
+</div>
+<!-- Output Pane -->
+<div class="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden">
+<div class="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50">
+<span class="font-label-caps text-label-caps text-secondary">Markdown Output</span>
+<button class="text-outline hover:text-secondary transition-colors" title="Copy to clipboard">
+<span class="material-symbols-outlined text-sm">content_copy</span>
+</button>
+</div>
+<div class="p-8 overflow-y-auto font-code-md text-code-md bg-background/80 flex-grow relative streaming-text" id="markdown-output">
+<!-- Streaming content will go here -->
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Shared Component: Footer -->
+<footer class="bg-surface-container-lowest border-t border-white/5 full-width py-unit mt-auto">
+<div class="flex flex-row justify-between items-center px-margin-page py-8 w-full max-w-container-max mx-auto">
+<div class="font-label-caps text-label-caps text-on-surface-variant">
+                © 2024 Lumina Systems. All transformations local-only.
+            </div>
+<div class="flex gap-6 font-label-caps text-label-caps">
+<a class="text-outline hover:text-primary transition-colors" href="#">Engine: Lumina-v2</a>
+<a class="text-outline hover:text-primary transition-colors" href="#">Privacy: Local Only</a>
+<a class="text-outline hover:text-primary transition-colors" href="#">Terms</a>
+<a class="text-outline hover:text-primary transition-colors" href="#">Github</a>
+</div>
+</div>
+</footer>
+<script>
+        const markdownContent = `
+# Project Alpha Requirements
+
+## 1. Introduction
+This document outlines the core functional requirements for the new Lumina-v2 engine integration. The primary goal is to ensure high-fidelity conversion of complex nested structures.
+
+## 2. Data Structures
+* **Headers:** Must retain hierarchy (H1-H6).
+* **Tables:** Complex tables should be flattened into standard markdown pipe tables.
+* **Images:** Extract and reference via local path or placeholder.
+
+> Note: Ensure backwards compatibility with v1 API endpoints during the transition phase.
+`;
+
+        function startConversion() {
+            const uploadSection = document.getElementById('upload-section');
+            const workspaceSection = document.getElementById('workspace-section');
+            const outputDiv = document.getElementById('markdown-output');
+            const magicIcon = document.getElementById('magic-icon');
+            const uploadIcon = document.querySelector('.upload-icon');
+            const docScanner = document.getElementById('doc-scanner');
+            
+            // Add pulse to upload icon
+            uploadIcon.classList.add('magic-pulse');
+            uploadIcon.textContent = 'autorenew';
+            
+            setTimeout(() => {
+                // Hide upload, show workspace
+                uploadSection.style.display = 'none';
+                workspaceSection.classList.remove('hidden');
+                
+                // Trigger reflow for transition
+                void workspaceSection.offsetWidth;
+                workspaceSection.classList.remove('opacity-0');
+                workspaceSection.classList.add('opacity-100');
+
+                // Start Scanner
+                docScanner.classList.remove('hidden');
+                
+                // Simulate parsing delay then stream
+                outputDiv.innerHTML = '<span class="text-outline animate-pulse inline-block mb-4">Initializing Lumina-v2 Engine...</span>';
+                
+                magicIcon.classList.add('animate-spin');
+                
+                setTimeout(() => {
+                    outputDiv.innerHTML = '';
+                    streamText(outputDiv, markdownContent, 0);
+                }, 800);
+            }, 1000);
+        }
+
+        function streamText(container, text, index) {
+            const magicIcon = document.getElementById('magic-icon');
+            if (index < text.length) {
+                let char = text.charAt(index);
+                
+                // Basic syntax highlighting logic for demo purposes
+                let colorClass = 'text-on-surface';
+                if (char === '#' || char === '*' || char === '>') colorClass = 'text-tertiary font-bold';
+                
+                // Handle newlines
+                if (char === '\n') {
+                    container.appendChild(document.createElement('br'));
+                } else {
+                    let span = document.createElement('span');
+                    span.textContent = char;
+                    span.className = colorClass;
+                    container.appendChild(span);
+                }
+                
+                // Scroll to bottom smoothly
+                container.scrollTop = container.scrollHeight;
+
+                setTimeout(() => streamText(container, text, index + 1), 10); // Streaming speed
+            } else {
+                magicIcon.classList.remove('animate-spin');
+                magicIcon.classList.add('text-secondary');
+                document.getElementById('doc-scanner').classList.add('hidden');
+                document.querySelector('.upload-icon').classList.remove('magic-pulse');
+                document.querySelector('.upload-icon').textContent = 'upload_file';
+            }
+        }
+
+        function resetView() {
+            const uploadSection = document.getElementById('upload-section');
+            const workspaceSection = document.getElementById('workspace-section');
+            const outputDiv = document.getElementById('markdown-output');
+            const magicIcon = document.getElementById('magic-icon');
+            const docScanner = document.getElementById('doc-scanner');
+            
+            workspaceSection.classList.remove('opacity-100');
+            workspaceSection.classList.add('opacity-0');
+            
+            setTimeout(() => {
+                workspaceSection.classList.add('hidden');
+                uploadSection.style.display = 'flex';
+                outputDiv.innerHTML = '';
+                magicIcon.classList.remove('text-secondary');
+                magicIcon.classList.add('text-primary');
+                docScanner.classList.add('hidden');
+                // Reset doc scanner animation
+                docScanner.style.animation = 'none';
+                void docScanner.offsetWidth;
+                docScanner.style.animation = null;
+            }, 500);
+        }
+
+        // Magnetic Button Effect
+        document.querySelectorAll('.magnetic-btn').forEach(btn => {
+            btn.addEventListener('mousemove', e => {
+                const rect = btn.getBoundingClientRect();
+                const x = e.clientX - rect.left - rect.width / 2;
+                const y = e.clientY - rect.top - rect.height / 2;
+                
+                btn.style.transform = `translate(${x * 0.2}px, ${y * 0.2}px) scale(1.05)`;
+            });
+            
+            btn.addEventListener('mouseleave', () => {
+                btn.style.transform = '';
+            });
+        });
+    </script>
+</body></html>
