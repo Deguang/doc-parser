@@ -140,14 +140,12 @@ export default function Elegant() {
 
   // High-performance direct DOM scroll sync without React re-renders and infinite loops
   useEffect(() => {
-    if (!isSyncScroll) return;
-
     const leftEl = leftScrollRef.current;
     const rightEl = rightOutputRef.current;
     let syncTimeoutId: number | null = null;
 
     const handleLeftScroll = () => {
-      if (isSyncingRef.current || !rightEl || !leftEl) return;
+      if (!isSyncScroll || isSyncingRef.current || !rightEl || !leftEl) return;
       const leftMax = leftEl.scrollHeight - leftEl.clientHeight;
       const rightMax = rightEl.scrollHeight - rightEl.clientHeight;
       if (leftMax > 0 && rightMax > 0) {
@@ -164,7 +162,7 @@ export default function Elegant() {
     };
 
     const handleRightScroll = () => {
-      if (isSyncingRef.current || !leftEl || !rightEl) return;
+      if (!isSyncScroll || isSyncingRef.current || !leftEl || !rightEl) return;
       const leftMax = leftEl.scrollHeight - leftEl.clientHeight;
       const rightMax = rightEl.scrollHeight - rightEl.clientHeight;
       if (leftMax > 0 && rightMax > 0) {
