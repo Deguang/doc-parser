@@ -41,6 +41,15 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
     }
   }, [scrollRef, containerRef.current]);
 
+  const fitWidth = useCallback((viewportWidth: number = baseDimensions.width) => {
+    if (containerRef.current && viewportWidth > 0) {
+      // 40px for padding, 20px for scrollbar
+      const containerWidth = containerRef.current.clientWidth - 60;
+      const newZoom = containerWidth / viewportWidth;
+      setZoom(Math.min(Math.max(newZoom, 0.3), 2.5));
+    }
+  }, [baseDimensions.width]);
+
   useEffect(() => {
     let active = true;
     let docProxy: pdfjsLib.PDFDocumentProxy | null = null;
@@ -63,6 +72,12 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
           const firstPage = await docProxy!.getPage(1);
           const viewport = firstPage.getViewport({ scale: 1.0 });
           setBaseDimensions({ width: viewport.width, height: viewport.height });
+          
+          if (containerRef.current) {
+            const containerWidth = containerRef.current.clientWidth - 60;
+            const newZoom = containerWidth / viewport.width;
+            setZoom(Math.min(Math.max(newZoom, 0.3), 2.5));
+          }
         }
         
       } catch (err: any) {
@@ -331,8 +346,12 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
           100%
         </button>
         <button
-          onClick={() => setZoom(0.75)}
-          className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${Math.abs(zoom - 0.75) < 0.01 ? 'bg-secondary/20 text-secondary' : 'text-outline hover:text-on-surface hover:bg-white/5'}`}
+          onClick={() => fitWidth()}
+          className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${
+            containerRef.current && Math.abs(zoom - (containerRef.current.clientWidth - 60) / (baseDimensions.width || 1)) < 0.05
+              ? 'bg-secondary/20 text-secondary' 
+              : 'text-outline hover:text-on-surface hover:bg-white/5'
+          }`}
         >
           Fit
         </button>
