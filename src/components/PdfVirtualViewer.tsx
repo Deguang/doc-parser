@@ -28,6 +28,7 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
   const renderTasks = useRef<Map<number, any>>(new Map());
   const pageProxies = useRef<Map<number, pdfjsLib.PDFPageProxy>>(new Map());
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const pageSizesRef = useRef<Map<number, PageDimensions>>(new Map());
 
   // Forward ref to the scroll container
   useEffect(() => {
@@ -133,6 +134,16 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
       canvas.style.width = `${cssViewport.width}px`;
       canvas.style.height = `${cssViewport.height}px`;
 
+      // Update intrinsic page dimensions dynamically
+      const intrinsicViewport = page.getViewport({ scale: 1.0 });
+      pageSizesRef.current.set(pageNum, { width: intrinsicViewport.width, height: intrinsicViewport.height });
+
+      const pageDiv = pageRefs.current.get(pageNum);
+      if (pageDiv) {
+        pageDiv.style.width = `${cssViewport.width}px`;
+        pageDiv.style.height = `${cssViewport.height}px`;
+      }
+
       const renderContext: any = {
         canvasContext: context,
         viewport: viewport,
@@ -212,9 +223,19 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
     };
   }, [pdfDoc, renderPage, clearPage]);
 
-  // Handle zoom changes for already visible pages
+  // Handle zoom changes for already visible pages and dimensions
   useEffect(() => {
     if (pdfDoc) {
+      // 1. Update sizes of all fetched pages to avoid layout shifts
+      pageSizesRef.current.forEach((dimensions, pageNum) => {
+        const pageDiv = pageRefs.current.get(pageNum);
+        if (pageDiv) {
+          pageDiv.style.width = `${dimensions.width * zoom}px`;
+          pageDiv.style.height = `${dimensions.height * zoom}px`;
+        }
+      });
+      
+      // 2. Re-render visible pages for sharp resolution
       Array.from(intendedVisibility.current.entries()).forEach(([pageNum, isVisible]) => {
         if (isVisible) renderPage(pageNum);
       });
@@ -225,17 +246,17 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
   const zoomIn = () => setZoom(z => Math.min(2.0, z + 0.1));
   const zoomOut = () => setZoom(z => Math.max(0.3, z - 0.1));
 
-  const pageHeight = baseDimensions.height * zoom;
-  const pageWidth = baseDimensions.width * zoom;
-
   return (
     <div 
-      className={`relative w-full h-full overflow-y-auto bg-[#1a1a2e] ${className}`}
+      className={`relative w-full h-full overflow-auto bg-[#1a1a2e] ${className}`}
       ref={containerRef}
       style={{ willChange: 'transform' }}
     >
-      <div className="flex flex-col items-center py-4 space-y-[12px]">
+      <div className="flex flex-col items-center py-4 space-y-[12px] min-w-max px-4">
         {Array.from({ length: numPages }, (_, i) => i + 1).map(pageNum => {
+          const intrinsic = pageSizesRef.current.get(pageNum) || baseDimensions;
+          const pw = intrinsic.width * zoom || 300;
+          const ph = intrinsic.height * zoom || 400;
           return (
             <div 
               key={pageNum}
@@ -251,7 +272,7 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
               }}
               data-page-number={pageNum}
               className="relative shadow-md bg-white rounded-sm flex items-center justify-center"
-              style={{ width: pageWidth || 300, height: pageHeight || 400 }}
+              style={{ width: pw, height: ph }}
             >
               <canvas 
                 ref={el => {
