@@ -15,10 +15,13 @@ function App() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [outputMode, setOutputMode] = useState<'stream' | 'preview'>('preview');
   
-  const [streamingText, setStreamingText] = useState<{char: string, colorClass: string}[]>([]);
+  const [streamedContent, setStreamedContent] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
   
   const outputRef = useRef<HTMLDivElement>(null);
+  const fullTextRef = useRef<string>('');
+  const streamRafId = useRef<number | null>(null);
+  const isCancelledRef = useRef<boolean>(false);
 
   useEffect(() => {
     init().then(() => setIsReady(true)).catch(err => {
@@ -51,62 +54,59 @@ function App() {
         btn.removeEventListener('mousemove', handleMouseMove as EventListener);
         btn.removeEventListener('mouseleave', handleMouseLeave as EventListener);
       });
+      if (streamRafId.current !== null) {
+        cancelAnimationFrame(streamRafId.current);
+      }
     };
   }, []);
 
-  const fullTextRef = useRef<string>('');
-
   const streamText = (text: string) => {
+    if (streamRafId.current !== null) {
+      cancelAnimationFrame(streamRafId.current);
+      streamRafId.current = null;
+    }
+    isCancelledRef.current = false;
     setIsStreaming(true);
-    setStreamingText([]);
+    setStreamedContent('');
     fullTextRef.current = text;
+
     let index = 0;
-    // Fast batching: complete entire document animation in ~0.5s - 0.8s max
-    const chunkSize = Math.max(15, Math.min(150, Math.floor(text.length / 40)));
+    // Adapt step size to complete fluidly in 0.5s - 0.8s
+    const stepSize = Math.max(20, Math.min(200, Math.floor(text.length / 35)));
     
     const streamNext = () => {
-      if (index < text.length) {
-        const nextBatch: {char: string, colorClass: string}[] = [];
-        const targetIndex = Math.min(index + chunkSize, text.length);
+      if (isCancelledRef.current) return;
 
-        for (let i = index; i < targetIndex; i++) {
-          let char = text.charAt(i);
-          let colorClass = 'text-on-surface';
-          if (char === '#' || char === '*' || char === '>') colorClass = 'text-tertiary font-bold';
-          nextBatch.push({ char, colorClass });
-        }
-        
-        setStreamingText(prev => [...prev, ...nextBatch]);
+      if (index < text.length) {
+        const nextIndex = Math.min(index + stepSize, text.length);
+        setStreamedContent(text.slice(0, nextIndex));
         
         if (outputRef.current) {
           outputRef.current.scrollTop = outputRef.current.scrollHeight;
         }
         
-        index = targetIndex;
-        // High-speed frame-based streaming
-        requestAnimationFrame(streamNext);
+        index = nextIndex;
+        streamRafId.current = requestAnimationFrame(streamNext);
       } else {
         setIsStreaming(false);
         setIsProcessing(false);
+        streamRafId.current = null;
       }
     };
     
-    setTimeout(streamNext, 50);
+    streamRafId.current = requestAnimationFrame(streamNext);
   };
 
   const skipStreaming = () => {
-    if (!fullTextRef.current) return;
-    const text = fullTextRef.current;
-    const allChars: {char: string, colorClass: string}[] = [];
-    for (let i = 0; i < text.length; i++) {
-      let char = text.charAt(i);
-      let colorClass = 'text-on-surface';
-      if (char === '#' || char === '*' || char === '>') colorClass = 'text-tertiary font-bold';
-      allChars.push({ char, colorClass });
+    isCancelledRef.current = true;
+    if (streamRafId.current !== null) {
+      cancelAnimationFrame(streamRafId.current);
+      streamRafId.current = null;
     }
-    setStreamingText(allChars);
+    setStreamedContent(fullTextRef.current);
     setIsStreaming(false);
     setIsProcessing(false);
+    setOutputMode('preview'); // Instant switch to rich rendered preview
   };
 
   const handleFile = async (file: File) => {
@@ -198,10 +198,15 @@ function App() {
   };
 
   const resetView = () => {
+    isCancelledRef.current = true;
+    if (streamRafId.current !== null) {
+      cancelAnimationFrame(streamRafId.current);
+      streamRafId.current = null;
+    }
     setSourceData(null);
     setConversionResult(null);
     setError('');
-    setStreamingText([]);
+    setStreamedContent('');
     setIsProcessing(false);
     setIsStreaming(false);
   };
@@ -381,13 +386,13 @@ function App() {
                       <MarkStream content={conversionResult?.markdown || ''} />
                     </div>
                   ) : (
-                    <div className="font-code-md text-code-md streaming-text">
-                      {(isProcessing && streamingText.length === 0) && (
+                    <div className="font-code-md text-code-md text-on-surface-variant">
+                      {(isProcessing && !streamedContent) && (
                         <span className="text-outline animate-pulse inline-block mb-4">Initializing Lumina-v2 Engine...</span>
                       )}
-                      {streamingText.map((item, i) => (
-                        item.char === '\n' ? <br key={i} /> : <span key={i} className={item.colorClass}>{item.char}</span>
-                      ))}
+                      <pre className="whitespace-pre-wrap font-mono select-text font-code-md">
+                        {streamedContent}
+                      </pre>
                     </div>
                   )}
                 </div>
