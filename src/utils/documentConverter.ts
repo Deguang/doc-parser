@@ -15,15 +15,36 @@ export interface ConversionResult {
   rawMarkdownWithRelativePaths: string; // Clean markdown with ./images/ references
 }
 
+const B64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
 export function uint8ArrayToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  const len = bytes.byteLength;
-  const chunkSize = 16384; // 16KB chunks for fast processing
-  for (let i = 0; i < len; i += chunkSize) {
-    const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
-    binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+  const len = bytes.length;
+  let base64 = '';
+  let i = 0;
+  // Unrolled fast 3-byte conversion loop
+  for (; i + 2 < len; i += 3) {
+    const b0 = bytes[i];
+    const b1 = bytes[i + 1];
+    const b2 = bytes[i + 2];
+    base64 += B64_CHARS[b0 >> 2];
+    base64 += B64_CHARS[((b0 & 3) << 4) | (b1 >> 4)];
+    base64 += B64_CHARS[((b1 & 15) << 2) | (b2 >> 6)];
+    base64 += B64_CHARS[b2 & 63];
   }
-  return btoa(binary);
+  if (i < len) {
+    const b0 = bytes[i];
+    base64 += B64_CHARS[b0 >> 2];
+    if (i + 1 < len) {
+      const b1 = bytes[i + 1];
+      base64 += B64_CHARS[((b0 & 3) << 4) | (b1 >> 4)];
+      base64 += B64_CHARS[(b1 & 15) << 2];
+      base64 += '=';
+    } else {
+      base64 += B64_CHARS[(b0 & 3) << 4];
+      base64 += '==';
+    }
+  }
+  return base64;
 }
 
 export function mimeToExt(mime: string): string {
@@ -64,23 +85,32 @@ export function revokeConversionAssets(result: ConversionResult | null | undefin
 }
 
 /**
- * Generates the full Base64-embedded markdown string lazily on demand,
- * so large Base64 strings are never held in memory during standard usage.
+ * Generates the full Base64-embedded markdown string in a single fast pass,
+ * avoiding multi-pass string allocations on 10MB+ book files.
  */
 export function getBase64Markdown(result: ConversionResult): string {
   if (!result.assets || result.assets.length === 0) {
     return result.rawMarkdownWithRelativePaths || result.markdown;
   }
 
-  let text = result.rawMarkdownWithRelativePaths;
+  // Pre-calculate data URIs into a lookup map
+  const uriMap = new Map<string, string>();
   for (const asset of result.assets) {
     const base64Data = uint8ArrayToBase64(asset.data);
     const dataUri = `data:${asset.mediaType};base64,${base64Data}`;
-    const escapedFilename = asset.filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`\\(\\./${escapedFilename}\\)|\\(${escapedFilename}\\)`, 'g');
-    text = text.replace(regex, `(${dataUri})`);
+    uriMap.set(asset.filename, dataUri);
+    uriMap.set(`./${asset.filename}`, dataUri);
   }
-  return text;
+
+  // Single-pass replacement over the entire markdown document
+  return result.rawMarkdownWithRelativePaths.replace(/\(!?\[.*?\]\(([^)]+)\)|\((images\/[^)]+)\)|\(\.\/(images\/[^)]+)\)/g, (match, p1, p2, p3) => {
+    const target = p1 || p2 || p3;
+    const dataUri = uriMap.get(target) || uriMap.get(`./${target}`) || uriMap.get(target?.replace(/^\.\//, ''));
+    if (dataUri) {
+      return match.replace(target, dataUri);
+    }
+    return match;
+  });
 }
 
 export function processDocument(bytes: Uint8Array, format: Format | null): ConversionResult {

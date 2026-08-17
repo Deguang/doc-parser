@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { marked } from 'marked';
 
 interface MarkdownRendererProps {
@@ -58,22 +58,36 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
     isLarge ? INITIAL_VISIBLE_CHUNKS : totalChunks
   );
 
+  // Incremental parse cache to avoid re-parsing previous chunks when expanding
+  const parseCacheRef = useRef<Map<number, string>>(new Map());
+
   useEffect(() => {
+    parseCacheRef.current.clear();
     setVisibleChunkCount(allRawChunks.length > INITIAL_VISIBLE_CHUNKS ? INITIAL_VISIBLE_CHUNKS : allRawChunks.length);
   }, [allRawChunks]);
 
   const hasMore = visibleChunkCount < totalChunks;
 
-  // Pre-parse only visible chunks
+  // Pre-parse only visible chunks with caching
   const parsedChunks = useMemo(() => {
     const rendered: string[] = [];
     const count = Math.min(visibleChunkCount, allRawChunks.length);
+    const cache = parseCacheRef.current;
+
     for (let i = 0; i < count; i++) {
-      try {
-        rendered.push(marked.parse(allRawChunks[i]) as string);
-      } catch (err) {
-        console.error('Markdown chunk parse error:', err);
-        rendered.push(`<pre class="whitespace-pre-wrap font-mono text-xs text-rose-400">${allRawChunks[i]}</pre>`);
+      if (cache.has(i)) {
+        rendered.push(cache.get(i)!);
+      } else {
+        try {
+          const parsed = marked.parse(allRawChunks[i]) as string;
+          cache.set(i, parsed);
+          rendered.push(parsed);
+        } catch (err) {
+          console.error('Markdown chunk parse error:', err);
+          const fallback = `<pre class="whitespace-pre-wrap font-mono text-xs text-rose-400">${allRawChunks[i]}</pre>`;
+          cache.set(i, fallback);
+          rendered.push(fallback);
+        }
       }
     }
     return rendered;
