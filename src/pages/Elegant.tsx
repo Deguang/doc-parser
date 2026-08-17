@@ -152,138 +152,133 @@ export default function Elegant() {
   };
 
   return (
-    <main className="flex-grow flex flex-col items-center px-4 md:px-margin-page py-12 md:py-24 max-w-container-max mx-auto w-full gap-16">
-      
-      {!sourceData ? (
-        <section className="w-full flex flex-col items-center text-center gap-8 max-w-3xl z-10" id="upload-section">
-          <div className="space-y-4">
-            <h1 className="font-display-lg text-display-lg text-on-surface bg-clip-text text-transparent bg-gradient-to-r from-on-surface to-primary-fixed">
-              Transform Documents into Clean Markdown
-            </h1>
-            <p className="font-body-rt text-body-rt text-on-surface-variant max-w-xl mx-auto">
-              Drag and drop your .docx, .pdf, or .txt files. Our local-first engine parses complex formatting into pristine, developer-ready markdown instantly.
-            </p>
-          </div>
-
-          <div 
-            className={`drop-zone relative w-full h-64 md:h-80 glass-panel rounded-xl flex flex-col items-center justify-center border-dashed border-2 transition-colors duration-300 cursor-pointer overflow-hidden group ${isDragging || isProcessing ? 'border-primary bg-primary/5' : 'border-outline-variant hover:border-primary'}`}
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={onDrop}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {isProcessing ? (
-              <div className="z-10 flex flex-col items-center gap-4 text-primary">
-                <span className="material-symbols-outlined text-6xl animate-spin">autorenew</span>
-                <div className="font-headline-md text-headline-md">Processing Document...</div>
-              </div>
-            ) : (
-              <>
-                <div className="scan-beam"></div>
-                <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-xl"></div>
-                <div className="z-10 flex flex-col items-center gap-4 text-on-surface-variant group-hover:text-primary transition-colors duration-300">
-                  <span className="material-symbols-outlined text-6xl font-light">upload_file</span>
-                  <div className="font-headline-md text-headline-md">Drop file here or click to browse</div>
-                  <div className="font-label-caps text-label-caps text-outline group-hover:text-primary-fixed-dim transition-colors">Supports .DOCX, .PDF, .PPTX, .TXT</div>
-                </div>
-              </>
-            )}
-            <input 
-              accept=".docx,.pdf,.pptx,.txt" 
-              className="hidden" 
-              type="file" 
-              ref={fileInputRef}
-              onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}
-            />
-          </div>
-          {error && <div className="text-error font-body-rt bg-error-container/20 px-4 py-2 rounded-md border border-error/50">{error}</div>}
-          {!isReady && <div className="text-secondary animate-pulse">Initializing WASM Parsing Engine...</div>}
-        </section>
-      ) : (
-        <section className="w-full flex flex-col gap-editor-gap z-10 transition-opacity duration-1000 opacity-100" id="workspace-section">
-          <div className="flex items-center justify-between w-full mb-2">
-            <div className="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary">description</span>
-              Document Parser
+    <div className="flex-1 flex flex-col w-full h-[calc(100vh-64px)] overflow-hidden antialiased">
+      <main className="flex-1 flex flex-col w-full h-full min-h-0 px-4 md:px-margin-page py-4 max-w-container-max mx-auto relative overflow-hidden">
+        
+        {!sourceData ? (
+          <section className="w-full flex-1 flex flex-col items-center justify-center text-center gap-8 max-w-3xl mx-auto z-10 overflow-y-auto py-8" id="upload-section">
+            <div className="space-y-4">
+              <h1 className="font-display-lg text-display-lg text-on-surface bg-clip-text text-transparent bg-gradient-to-r from-on-surface to-primary-fixed">
+                Transform Documents into Clean Markdown
+              </h1>
+              <p className="font-body-rt text-body-rt text-on-surface-variant max-w-xl mx-auto">
+                Drag and drop your .docx, .pdf, or .txt files. Our local-first engine parses complex formatting into pristine, developer-ready markdown instantly.
+              </p>
             </div>
-            <div className="flex flex-wrap gap-3 items-center">
-              {conversionResult && conversionResult.assets.length > 0 && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tertiary/10 border border-tertiary/20 text-tertiary text-xs font-label-caps">
-                  <span className="material-symbols-outlined text-sm">photo_library</span>
-                  {conversionResult.assets.length} Image{conversionResult.assets.length > 1 ? 's' : ''} Extracted
+
+            <div 
+              className={`drop-zone relative w-full h-64 md:h-72 glass-panel rounded-xl flex flex-col items-center justify-center border-dashed border-2 transition-colors duration-300 cursor-pointer overflow-hidden group ${isDragging || isProcessing ? 'border-primary bg-primary/5' : 'border-outline-variant hover:border-primary'}`}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {isProcessing ? (
+                <div className="z-10 flex flex-col items-center gap-4 text-primary">
+                  <span className="material-symbols-outlined text-6xl animate-spin">autorenew</span>
+                  <div className="font-headline-md text-headline-md">Processing Document...</div>
                 </div>
+              ) : (
+                <>
+                  <div className="scan-beam"></div>
+                  <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-xl"></div>
+                  <div className="z-10 flex flex-col items-center gap-4 text-on-surface-variant group-hover:text-primary transition-colors duration-300">
+                    <span className="material-symbols-outlined text-6xl font-light">upload_file</span>
+                    <div className="font-headline-md text-headline-md">Drop file here or click to browse</div>
+                    <div className="font-label-caps text-label-caps text-outline group-hover:text-primary-fixed-dim transition-colors">Supports .DOCX, .PDF, .PPTX, .TXT</div>
+                  </div>
+                </>
               )}
-              <button 
-                onClick={resetView}
-                className="glass-panel text-on-surface-variant hover:text-primary px-4 py-2 rounded-lg font-label-caps text-label-caps flex items-center gap-2 transition-all duration-200 active:scale-95"
-              >
-                <span className="material-symbols-outlined text-sm">restart_alt</span> New
-              </button>
-              
-              <button 
-                onClick={downloadMarkdownBase64}
-                className="glass-panel text-on-surface hover:text-primary px-4 py-2 rounded-lg font-label-caps text-label-caps flex items-center gap-2 transition-all duration-200 active:scale-95 border-primary/30"
-                title="Download single self-contained Markdown with Base64 embedded images"
-              >
-                <span className="material-symbols-outlined text-sm text-primary">description</span> 
-                Download .md (Base64)
-              </button>
-
-              <button 
-                onClick={downloadZip}
-                disabled={isDownloading}
-                className="btn-primary-glow px-4 py-2 rounded-lg font-label-caps text-label-caps flex items-center gap-2 transition-all duration-200 active:scale-95"
-                title="Download ZIP package with Markdown and separate images/ folder"
-              >
-                <span className="material-symbols-outlined text-sm">
-                  {isDownloading ? 'progress_activity' : 'folder_zip'}
-                </span> 
-                {isDownloading ? 'Zipping...' : 'Download .zip (Packaged)'}
-              </button>
+              <input 
+                accept=".docx,.pdf,.pptx,.txt" 
+                className="hidden" 
+                type="file" 
+                ref={fileInputRef}
+                onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}
+              />
             </div>
-          </div>
-          
-          <div className="flex flex-col md:flex-row w-full h-[600px] gap-editor-gap">
-            <div className="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50 gap-2">
-                <div className="flex items-center gap-1 bg-black/20 p-1 rounded-lg border border-white/5">
-                  <button
-                    onClick={() => setLeftTab('preview')}
-                    className={`px-3 py-1 rounded text-xs font-label-caps transition-all ${
-                      leftTab === 'preview'
-                        ? 'bg-primary/20 text-primary border border-primary/30 shadow-sm font-semibold'
-                        : 'text-on-surface-variant hover:text-on-surface'
-                    }`}
-                  >
-                    Original Source
-                  </button>
-                  <button
-                    onClick={() => setLeftTab('rendered')}
-                    className={`px-3 py-1 rounded text-xs font-label-caps transition-all ${
-                      leftTab === 'rendered'
-                        ? 'bg-secondary/20 text-secondary border border-secondary/30 shadow-sm font-semibold'
-                        : 'text-on-surface-variant hover:text-on-surface'
-                    }`}
-                  >
-                    Rendered Markdown
-                  </button>
-                </div>
-                {parseStats && (
-                  <span className="text-secondary font-label-caps text-xs">
-                    Parsed {(parseStats.sizeBytes / 1024).toFixed(1)} KB in {parseStats.timeMs}ms
-                  </span>
-                )}
+            {error && <div className="text-error font-body-rt bg-error-container/20 px-4 py-2 rounded-md border border-error/50">{error}</div>}
+            {!isReady && <div className="text-secondary animate-pulse">Initializing WASM Parsing Engine...</div>}
+          </section>
+        ) : (
+          <section className="w-full flex-1 flex flex-col min-h-0 gap-3 z-10 overflow-hidden" id="workspace-section">
+            <div className="flex items-center justify-between w-full shrink-0">
+              <div className="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">description</span>
+                Document Parser
               </div>
-              <div className="overflow-hidden flex-grow relative flex flex-col bg-white/5">
-                {leftTab === 'preview' ? (
-                  <DocumentPreview name={sourceData.name} content={sourceData.content} className="flex-grow" />
-                ) : (
-                  <div className="p-8 overflow-y-auto font-body-rt text-body-rt text-on-surface/80 flex-grow streaming-text">
-                    <MarkStream content={conversionResult?.markdown || ''} />
+              <div className="flex flex-wrap gap-2 items-center">
+                {conversionResult && conversionResult.assets.length > 0 && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tertiary/10 border border-tertiary/20 text-tertiary text-xs font-label-caps">
+                    <span className="material-symbols-outlined text-sm">photo_library</span>
+                    {conversionResult.assets.length} Image{conversionResult.assets.length > 1 ? 's' : ''}
                   </div>
                 )}
+                <button className="glass-panel text-on-surface-variant hover:text-primary px-3 py-1.5 rounded-lg font-label-caps text-xs flex items-center gap-1 transition-all duration-200 active:scale-95" onClick={resetView}>
+                  <span className="material-symbols-outlined text-sm">restart_alt</span> New
+                </button>
+                <button 
+                  onClick={downloadMarkdownBase64} 
+                  className="glass-panel text-on-surface hover:text-primary px-3 py-1.5 rounded-lg font-label-caps text-xs flex items-center gap-1 transition-all duration-200 active:scale-95 border-primary/30"
+                  title="Download Markdown with Base64 embedded images"
+                >
+                  <span className="material-symbols-outlined text-sm text-primary">description</span> .md
+                </button>
+                <button 
+                  onClick={downloadZip} 
+                  disabled={isDownloading}
+                  className="btn-primary-glow px-3 py-1.5 rounded-lg font-label-caps text-xs flex items-center gap-1 transition-all duration-200 active:scale-95"
+                  title="Download ZIP with Markdown and images folder"
+                >
+                  <span className="material-symbols-outlined text-sm">
+                    {isDownloading ? 'progress_activity' : 'folder_zip'}
+                  </span> 
+                  {isDownloading ? 'Zipping...' : '.zip'}
+                </button>
               </div>
             </div>
+            
+            <div className="flex-1 flex flex-col md:flex-row w-full min-h-0 gap-4 overflow-hidden">
+              <div className="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden border border-white/10">
+                <div className="px-4 py-2.5 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50 gap-2 shrink-0">
+                  <div className="flex items-center gap-1 bg-black/20 p-0.5 rounded-lg border border-white/5">
+                    <button
+                      onClick={() => setLeftTab('preview')}
+                      className={`px-2.5 py-1 rounded text-xs font-label-caps transition-all ${
+                        leftTab === 'preview'
+                          ? 'bg-primary/20 text-primary border border-primary/30 shadow-sm font-semibold'
+                          : 'text-on-surface-variant hover:text-on-surface'
+                      }`}
+                    >
+                      Original Source
+                    </button>
+                    <button
+                      onClick={() => setLeftTab('rendered')}
+                      className={`px-2.5 py-1 rounded text-xs font-label-caps transition-all ${
+                        leftTab === 'rendered'
+                          ? 'bg-secondary/20 text-secondary border border-secondary/30 shadow-sm font-semibold'
+                          : 'text-on-surface-variant hover:text-on-surface'
+                      }`}
+                    >
+                      Rendered Markdown
+                    </button>
+                  </div>
+                  {parseStats && (
+                    <span className="text-secondary font-label-caps text-xs">
+                      {(parseStats.sizeBytes / 1024).toFixed(1)} KB • {parseStats.timeMs}ms
+                    </span>
+                  )}
+                </div>
+                <div className="overflow-hidden flex-grow relative flex flex-col bg-white/5">
+                  {leftTab === 'preview' ? (
+                    <DocumentPreview name={sourceData.name} content={sourceData.content} className="flex-grow" />
+                  ) : (
+                    <div className="p-6 overflow-y-auto font-body-rt text-body-rt text-on-surface/90 flex-grow streaming-text markstream-container">
+                      <MarkStream content={conversionResult?.markdown || '*(No content)*'} isDark={true} final={true} />
+                    </div>
+                  )}
+                </div>
+              </div>
 
             <div className="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden">
               <div className="px-4 py-3 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50">
@@ -310,13 +305,14 @@ export default function Elegant() {
                   <span className="material-symbols-outlined text-sm">content_copy</span>
                 </button>
               </div>
-              <div className="p-8 overflow-y-auto font-code-md text-code-md bg-background/80 flex-grow relative text-on-surface-variant whitespace-pre-wrap">
+              <div className="p-6 overflow-y-auto font-code-md text-code-md bg-background/80 flex-grow relative text-on-surface-variant whitespace-pre-wrap">
                 {rawMarkdownMode === 'base64' ? rawBase64Markdown : conversionResult?.rawMarkdownWithRelativePaths}
               </div>
+              </div>
             </div>
-          </div>
-        </section>
-      )}
-    </main>
+          </section>
+        )}
+      </main>
+    </div>
   );
 }
