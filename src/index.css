@@ -179,3 +179,16 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.1);
   display: block;
 }
+
+/* Native Virtual Rendering Optimization (Zero-JS Virtual Scrolling) */
+.streaming-text p,
+.streaming-text pre,
+.streaming-text table,
+.streaming-text blockquote,
+.streaming-text .docx-rendered,
+.markdown-rendered-content p,
+.markdown-rendered-content pre,
+.markdown-rendered-content table {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 60px;
+}
