@@ -61,6 +61,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
         }
         setLoading(false);
       } else if (ext === 'docx') {
+        const isVeryLargeDoc = content.length > 5 * 1024 * 1024; // > 5MB
         setTimeout(() => {
           if (!docxContainerRef.current) {
             setLoading(false);
@@ -68,12 +69,12 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           }
           try {
             docxContainerRef.current.innerHTML = '';
-            renderAsync(content.buffer.slice(0), docxContainerRef.current, undefined, {
+            renderAsync(content.buffer, docxContainerRef.current, undefined, {
               inWrapper: false,
               ignoreWidth: true,
               ignoreHeight: true,
-              ignoreFonts: false,
-              breakPages: true,
+              ignoreFonts: isVeryLargeDoc,
+              breakPages: !isVeryLargeDoc, // Avoid heavy page break layout on 100+ page books
               useBase64URL: true,
               className: 'docx-rendered',
             })
@@ -82,7 +83,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
               })
               .catch((err) => {
                 console.warn('Docx preview render warning:', err);
-                setError('Visual Word preview unavailable for this document.');
+                setError('Full visual preview skipped for large book. Markdown is ready on the right.');
                 setLoading(false);
               });
           } catch (e) {

@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import init, { formatFromExtension } from '@firecrawl/anydoc-wasm';
+import { formatFromExtension } from '@firecrawl/anydoc-wasm';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { DocumentPreview } from '../components/DocumentPreview';
+import { WasmProgressBar } from '../components/WasmProgressBar';
 import { createZipExport, getBase64Markdown, revokeConversionAssets, type ConversionResult } from '../utils/documentConverter';
 import { parseDocumentInWorker } from '../utils/workerManager';
 
@@ -29,11 +30,6 @@ function App() {
   const prevResultRef = useRef<ConversionResult | null>(null);
 
   useEffect(() => {
-    init().catch(err => {
-      console.error(err);
-      setError('Failed to initialize WASM engine.');
-    });
-
     // Magnetic Button Effect
     const handleMouseMove = (e: MouseEvent) => {
       const btn = e.currentTarget as HTMLElement;
@@ -72,14 +68,24 @@ function App() {
       streamRafId.current = null;
     }
     isCancelledRef.current = false;
-    setOutputMode('stream'); // Default to live waterfall stream
-    setIsStreaming(true);
-    setStreamedContent('');
+    setOutputMode('stream');
     fullTextRef.current = text;
 
+    // For large documents & whole books (> 250KB), bypass per-character animation to prevent memory exhaustion
+    if (text.length > 250 * 1024) {
+      setStreamedContent(text);
+      setIsStreaming(false);
+      setIsProcessing(false);
+      return;
+    }
+
+    setIsStreaming(true);
+    setStreamedContent('');
+
     let index = 0;
-    // Step size for smooth visual flow (~1.2s - 1.8s total typing waterfall)
-    const stepSize = Math.max(12, Math.min(100, Math.floor(text.length / 50)));
+    // Cap total animation at ~20 frames (~300ms) with adaptive step size
+    const totalFrames = Math.min(25, Math.max(10, Math.floor(text.length / 400)));
+    const stepSize = Math.max(30, Math.ceil(text.length / totalFrames));
     
     const streamNext = () => {
       if (isCancelledRef.current) return;
@@ -88,7 +94,7 @@ function App() {
         const nextIndex = Math.min(index + stepSize, text.length);
         setStreamedContent(text.slice(0, nextIndex));
         
-        // Auto-follow: scroll down to follow the active rendering line
+        // Auto-follow: scroll down to follow active line
         if (outputRef.current) {
           outputRef.current.scrollTop = outputRef.current.scrollHeight;
         }
@@ -99,6 +105,9 @@ function App() {
         setIsStreaming(false);
         setIsProcessing(false);
         streamRafId.current = null;
+        if (outputRef.current) {
+          outputRef.current.scrollTop = 0;
+        }
       }
     };
     
@@ -308,6 +317,8 @@ function App() {
               <input accept=".docx,.pdf,.pptx,.txt,.xlsx" className="hidden" id="file-input" type="file" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
               <div className="absolute inset-0 z-20" onClick={() => document.getElementById('file-input')?.click()}></div>
             </div>
+            
+            <WasmProgressBar />
             {error && <div className="text-xs text-rose-400 bg-rose-500/10 px-4 py-2.5 rounded-lg border border-rose-500/20">{error}</div>}
           </section>
         ) : (

@@ -1,12 +1,12 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import init, { formatFromExtension } from '@firecrawl/anydoc-wasm';
+import { formatFromExtension } from '@firecrawl/anydoc-wasm';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { DocumentPreview } from '../components/DocumentPreview';
+import { WasmProgressBar } from '../components/WasmProgressBar';
 import { createZipExport, getBase64Markdown, revokeConversionAssets, type ConversionResult } from '../utils/documentConverter';
 import { parseDocumentInWorker } from '../utils/workerManager';
 
 export default function Elegant() {
-  const [isReady, setIsReady] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [sourceData, setSourceData] = useState<{name: string, content: Uint8Array} | null>(null);
   const [conversionResult, setConversionResult] = useState<ConversionResult | null>(null);
@@ -27,11 +27,6 @@ export default function Elegant() {
   const prevResultRef = useRef<ConversionResult | null>(null);
 
   useEffect(() => {
-    init().then(() => setIsReady(true)).catch(err => {
-      console.error(err);
-      setError('Failed to initialize WASM parsing engine.');
-    });
-
     return () => {
       revokeConversionAssets(prevResultRef.current);
     };
@@ -240,8 +235,9 @@ export default function Elegant() {
                 onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}
               />
             </div>
+            
+            <WasmProgressBar />
             {error && <div className="text-xs text-rose-400 bg-rose-500/10 px-4 py-2.5 rounded-lg border border-rose-500/20">{error}</div>}
-            {!isReady && <div className="text-xs text-slate-400 animate-pulse">Initializing WASM Engine...</div>}
           </section>
         ) : (
           <section className="w-full flex-1 flex flex-col min-h-0 gap-3 z-10 overflow-hidden" id="workspace-section">

@@ -1,9 +1,11 @@
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import Waterfall from './pages/Waterfall';
 import Elegant from './pages/Elegant';
+import { useWasmLoader } from './utils/wasmLoader';
 
 function App() {
   const location = useLocation();
+  const { stage, progress } = useWasmLoader();
   
   return (
     <div className="flex flex-col min-h-screen bg-[#090b10] text-[#f8fafc] antialiased">
@@ -44,10 +46,22 @@ function App() {
         </div>
 
         <div className="flex items-center gap-3 text-xs text-slate-400">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            Local WASM Engine
-          </div>
+          {stage === 'ready' ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              Local WASM Ready
+            </div>
+          ) : stage === 'error' ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[11px] font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+              WASM Init Error
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[11px] font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+              <span>{stage === 'compiling' ? 'Compiling' : 'Loading Engine'} {progress}%</span>
+            </div>
+          )}
           <a
             href="https://github.com/Deguang/doc-parser"
             target="_blank"
