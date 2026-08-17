@@ -12,6 +12,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content,
   const [textContent, setTextContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [zoom, setZoom] = useState<number>(85); // Default to 85% for optimal sidebar fit
 
   const docxContainerRef = useRef<HTMLDivElement>(null);
   const ext = name.split('.').pop()?.toLowerCase() || '';
@@ -44,9 +45,12 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content,
         if (docxContainerRef.current) {
           docxContainerRef.current.innerHTML = '';
           renderAsync(content.buffer, docxContainerRef.current, undefined, {
-            inWrapper: true,
-            ignoreWidth: false,
-            ignoreHeight: false,
+            inWrapper: false,
+            ignoreWidth: true,
+            ignoreHeight: true,
+            ignoreFonts: false,
+            breakPages: true,
+            useBase64URL: true,
             className: 'docx-rendered',
           })
             .then(() => {
@@ -74,10 +78,43 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content,
     };
   }, [name, content, ext]);
 
+  const ZoomToolbar = () => (
+    <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1 bg-surface-container-high/90 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 shadow-lg text-xs font-label-caps">
+      <button
+        onClick={() => setZoom(z => Math.max(30, z - 10))}
+        className="p-1 hover:text-primary transition-colors flex items-center justify-center rounded hover:bg-white/5"
+        title="Zoom out"
+      >
+        <span className="material-symbols-outlined text-sm">remove</span>
+      </button>
+      <span className="px-1 min-w-[36px] text-center font-mono text-[11px] text-on-surface">{zoom}%</span>
+      <button
+        onClick={() => setZoom(z => Math.min(200, z + 10))}
+        className="p-1 hover:text-primary transition-colors flex items-center justify-center rounded hover:bg-white/5"
+        title="Zoom in"
+      >
+        <span className="material-symbols-outlined text-sm">add</span>
+      </button>
+      <div className="w-[1px] h-3 bg-white/10 mx-0.5"></div>
+      <button
+        onClick={() => setZoom(100)}
+        className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${zoom === 100 ? 'bg-primary/20 text-primary' : 'text-outline hover:text-on-surface hover:bg-white/5'}`}
+      >
+        100%
+      </button>
+      <button
+        onClick={() => setZoom(75)}
+        className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${zoom === 75 ? 'bg-secondary/20 text-secondary' : 'text-outline hover:text-on-surface hover:bg-white/5'}`}
+      >
+        Fit
+      </button>
+    </div>
+  );
+
   // DOCX Render container
   if (ext === 'docx') {
     return (
-      <div className={`w-full h-full relative overflow-auto ${className}`}>
+      <div className={`w-full h-full relative overflow-hidden bg-slate-900/30 flex flex-col ${className}`}>
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-surface-container-low/80 backdrop-blur-sm z-10">
             <span className="material-symbols-outlined text-3xl text-primary animate-spin">progress_activity</span>
@@ -89,10 +126,22 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content,
             {error}
           </div>
         )}
-        <div 
-          ref={docxContainerRef} 
-          className="docx-container p-4 min-h-full bg-slate-900/40 text-slate-100 rounded-lg text-sm [&_.docx-wrapper]:!bg-transparent [&_.docx-wrapper]:!p-0 [&_.docx-rendered]:!bg-slate-950/80 [&_.docx-rendered]:!text-slate-100 [&_.docx-rendered]:!border [&_.docx-rendered]:!border-white/10 [&_.docx-rendered]:!shadow-xl [&_.docx-rendered]:!p-8 [&_.docx-rendered]:!rounded-lg"
-        />
+        <div className="flex-grow overflow-auto p-4 flex justify-center">
+          <div 
+            style={{ 
+              transform: `scale(${zoom / 100})`, 
+              transformOrigin: 'top center',
+              width: `${100 * (100 / zoom)}%`,
+              transition: 'transform 0.15s ease-out, width 0.15s ease-out'
+            }}
+          >
+            <div 
+              ref={docxContainerRef} 
+              className="docx-container w-full max-w-full text-slate-100 text-sm [&_.docx-rendered]:!bg-slate-950/90 [&_.docx-rendered]:!text-slate-100 [&_.docx-rendered]:!border [&_.docx-rendered]:!border-white/10 [&_.docx-rendered]:!shadow-2xl [&_.docx-rendered]:!p-8 [&_.docx-rendered]:!rounded-lg [&_.docx-rendered]:!max-w-full [&_.docx-rendered]:!w-full [&_.docx-rendered]:!box-border [&_section.docx]:!max-w-full [&_section.docx]:!w-full [&_section.docx]:!box-border [&_table]:!max-w-full [&_table]:!w-full"
+            />
+          </div>
+        </div>
+        <ZoomToolbar />
       </div>
     );
   }
@@ -100,10 +149,10 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content,
   // PDF Preview
   if (ext === 'pdf' && objectUrl) {
     return (
-      <div className={`w-full h-full relative ${className}`}>
+      <div className={`w-full h-full relative bg-surface-container-low ${className}`}>
         <iframe
-          src={`${objectUrl}#toolbar=0&navpanes=0`}
-          className="w-full h-full border-none rounded-lg bg-surface-container-low"
+          src={`${objectUrl}#toolbar=0&navpanes=0&view=FitH`}
+          className="w-full h-full border-none rounded-lg"
           title={`PDF Preview: ${name}`}
         />
       </div>
@@ -113,12 +162,18 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content,
   // Image Preview
   if (['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif', 'bmp'].includes(ext) && objectUrl) {
     return (
-      <div className={`w-full h-full flex items-center justify-center p-6 bg-surface-container-low/40 rounded-lg overflow-auto ${className}`}>
-        <img
-          src={objectUrl}
-          alt={name}
-          className="max-w-full max-h-full object-contain rounded shadow-lg border border-white/10"
-        />
+      <div className={`w-full h-full relative flex items-center justify-center p-6 bg-surface-container-low/40 rounded-lg overflow-auto ${className}`}>
+        <div 
+          className="flex items-center justify-center transition-transform duration-150 ease-out"
+          style={{ transform: `scale(${zoom / 100})` }}
+        >
+          <img
+            src={objectUrl}
+            alt={name}
+            className="max-w-full max-h-[500px] object-contain rounded shadow-lg border border-white/10"
+          />
+        </div>
+        <ZoomToolbar />
       </div>
     );
   }
@@ -126,10 +181,20 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content,
   // Text / Code / Markdown Preview
   if (textContent !== null) {
     return (
-      <div className={`w-full h-full overflow-auto p-4 font-code-md text-xs leading-relaxed text-on-surface/90 bg-surface-container-low/40 rounded-lg ${className}`}>
-        <pre className="whitespace-pre-wrap break-words font-mono select-text">
-          {textContent}
-        </pre>
+      <div className={`w-full h-full relative overflow-hidden bg-surface-container-low/40 rounded-lg ${className}`}>
+        <div className="w-full h-full overflow-auto p-4 font-code-md text-xs leading-relaxed text-on-surface/90">
+          <pre 
+            className="whitespace-pre-wrap break-words font-mono select-text transition-transform duration-150 ease-out"
+            style={{ 
+              transform: `scale(${zoom / 100})`, 
+              transformOrigin: 'top left',
+              width: `${100 * (100 / zoom)}%`
+            }}
+          >
+            {textContent}
+          </pre>
+        </div>
+        <ZoomToolbar />
       </div>
     );
   }
