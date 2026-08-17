@@ -1,13 +1,16 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import init, { toMarkdownBytes, formatFromExtension } from '@firecrawl/anydoc-wasm';
+import init, { formatFromExtension } from '@firecrawl/anydoc-wasm';
 import { DocumentPreview } from '../components/DocumentPreview';
+import { processDocument, createZipExport, type ConversionResult } from '../utils/documentConverter';
 
 function App() {
   const [isReady, setIsReady] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [sourceData, setSourceData] = useState<{name: string, content: Uint8Array} | null>(null);
+  const [conversionResult, setConversionResult] = useState<ConversionResult | null>(null);
   const [error, setError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   
   const [streamingText, setStreamingText] = useState<{char: string, colorClass: string}[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -66,20 +69,21 @@ function App() {
         }
         
         index++;
-        setTimeout(streamNext, 5); // Fast streaming speed
+        setTimeout(streamNext, 4); // Fast streaming speed
       } else {
         setIsStreaming(false);
         setIsProcessing(false);
       }
     };
     
-    setTimeout(streamNext, 800);
+    setTimeout(streamNext, 600);
   };
 
   const handleFile = async (file: File) => {
     if (!file) return;
     setIsProcessing(true);
     setError('');
+    setConversionResult(null);
     
     try {
       const buffer = await file.arrayBuffer();
@@ -88,10 +92,11 @@ function App() {
       
       const ext = file.name.split('.').pop()?.toLowerCase() || 'txt';
       const format = formatFromExtension(ext) || null;
-      const text = toMarkdownBytes(bytes, format);
+      const result = processDocument(bytes, format);
+      setConversionResult(result);
       
-      // Start streaming animation
-      streamText(text);
+      // Start streaming animation with clean markdown
+      streamText(result.rawMarkdownWithRelativePaths || result.markdown);
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Error parsing document.');
@@ -117,8 +122,51 @@ function App() {
     }
   }, []);
 
+  const downloadMarkdownBase64 = () => {
+    if (!conversionResult || !sourceData) return;
+    const blob = new Blob([conversionResult.rawMarkdownWithBase64], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${sourceData.name.replace(/\.[^/.]+$/, "")}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadZip = async () => {
+    if (!conversionResult || !sourceData) return;
+    setIsDownloading(true);
+    try {
+      const baseName = sourceData.name.replace(/\.[^/.]+$/, "");
+      const zipBlob = await createZipExport(baseName, conversionResult.rawMarkdownWithRelativePaths, conversionResult.assets);
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${baseName}_markdown.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to generate zip:', err);
+      alert('Failed to generate ZIP export.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const copyToClipboard = () => {
+    if (!conversionResult) return;
+    navigator.clipboard.writeText(conversionResult.rawMarkdownWithBase64).then(() => {
+      alert('Copied to clipboard!');
+    });
+  };
+
   const resetView = () => {
     setSourceData(null);
+    setConversionResult(null);
     setError('');
     setStreamingText([]);
     setIsProcessing(false);
@@ -189,12 +237,33 @@ function App() {
                 <span className="material-symbols-outlined text-primary">description</span>
                 Document Parser
               </div>
-              <div className="flex gap-4">
+              <div className="flex flex-wrap gap-3 items-center">
+                {conversionResult && conversionResult.assets.length > 0 && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tertiary/10 border border-tertiary/20 text-tertiary text-xs font-label-caps">
+                    <span className="material-symbols-outlined text-sm">photo_library</span>
+                    {conversionResult.assets.length} Image{conversionResult.assets.length > 1 ? 's' : ''}
+                  </div>
+                )}
                 <button className="glass-panel text-on-surface-variant hover:text-primary px-4 py-2 rounded-lg font-label-caps text-label-caps flex items-center gap-2 transition-all duration-200 active:scale-95 magnetic-btn" onClick={resetView}>
-                  <span className="material-symbols-outlined text-sm">restart_alt</span> New Conversion
+                  <span className="material-symbols-outlined text-sm">restart_alt</span> New
                 </button>
-                <button className="btn-primary-glow px-4 py-2 rounded-lg font-label-caps text-label-caps flex items-center gap-2 transition-all duration-200 active:scale-95 magnetic-btn">
-                  <span className="material-symbols-outlined text-sm">download</span> Download .md
+                <button 
+                  onClick={downloadMarkdownBase64} 
+                  className="glass-panel text-on-surface hover:text-primary px-4 py-2 rounded-lg font-label-caps text-label-caps flex items-center gap-2 transition-all duration-200 active:scale-95 border-primary/30 magnetic-btn"
+                  title="Download single Markdown file with Base64 embedded images"
+                >
+                  <span className="material-symbols-outlined text-sm text-primary">description</span> Download .md
+                </button>
+                <button 
+                  onClick={downloadZip} 
+                  disabled={isDownloading}
+                  className="btn-primary-glow px-4 py-2 rounded-lg font-label-caps text-label-caps flex items-center gap-2 transition-all duration-200 active:scale-95 magnetic-btn"
+                  title="Download ZIP with Markdown and separate images/ folder"
+                >
+                  <span className="material-symbols-outlined text-sm">
+                    {isDownloading ? 'progress_activity' : 'folder_zip'}
+                  </span> 
+                  {isDownloading ? 'Zipping...' : 'Download .zip'}
                 </button>
               </div>
             </div>
@@ -229,7 +298,7 @@ function App() {
               <div className="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden">
                 <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50">
                   <span className="font-label-caps text-label-caps text-secondary">Markdown Output</span>
-                  <button className="text-outline hover:text-secondary transition-colors" title="Copy to clipboard">
+                  <button onClick={copyToClipboard} className="text-outline hover:text-secondary transition-colors p-1" title="Copy to clipboard">
                     <span className="material-symbols-outlined text-sm">content_copy</span>
                   </button>
                 </div>

@@ -1,17 +1,20 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import init, { toMarkdownBytes, formatFromExtension } from '@firecrawl/anydoc-wasm';
+import init, { formatFromExtension } from '@firecrawl/anydoc-wasm';
 import MarkStream from 'markstream-react';
 import { DocumentPreview } from '../components/DocumentPreview';
+import { processDocument, createZipExport, type ConversionResult } from '../utils/documentConverter';
 
 export default function Elegant() {
   const [isReady, setIsReady] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [sourceData, setSourceData] = useState<{name: string, content: Uint8Array} | null>(null);
-  const [markdown, setMarkdown] = useState('');
+  const [conversionResult, setConversionResult] = useState<ConversionResult | null>(null);
   const [error, setError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [parseStats, setParseStats] = useState<{ timeMs: number, sizeBytes: number } | null>(null);
   const [leftTab, setLeftTab] = useState<'preview' | 'rendered'>('preview');
+  const [rawMarkdownMode, setRawMarkdownMode] = useState<'base64' | 'relative'>('base64');
+  const [isDownloading, setIsDownloading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -27,7 +30,7 @@ export default function Elegant() {
     setError('');
     setParseStats(null);
     setSourceData(null);
-    setMarkdown('');
+    setConversionResult(null);
     
     try {
       const buffer = await file.arrayBuffer();
@@ -38,10 +41,10 @@ export default function Elegant() {
       const format = formatFromExtension(ext) || null;
       
       const startTime = performance.now();
-      const text = toMarkdownBytes(bytes, format);
+      const result = processDocument(bytes, format);
       const endTime = performance.now();
       
-      setMarkdown(text);
+      setConversionResult(result);
       setParseStats({
         timeMs: Math.round(endTime - startTime),
         sizeBytes: bytes.length
@@ -77,14 +80,18 @@ export default function Elegant() {
   }, []);
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(markdown).then(() => {
+    const textToCopy = rawMarkdownMode === 'base64' 
+      ? conversionResult?.rawMarkdownWithBase64 
+      : conversionResult?.rawMarkdownWithRelativePaths;
+    if (!textToCopy) return;
+    navigator.clipboard.writeText(textToCopy).then(() => {
       alert('Copied to clipboard!');
     });
   };
 
-  const downloadMarkdown = () => {
-    if (!markdown || !sourceData) return;
-    const blob = new Blob([markdown], { type: 'text/markdown' });
+  const downloadMarkdownBase64 = () => {
+    if (!conversionResult || !sourceData) return;
+    const blob = new Blob([conversionResult.rawMarkdownWithBase64], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -95,9 +102,31 @@ export default function Elegant() {
     URL.revokeObjectURL(url);
   };
 
+  const downloadZip = async () => {
+    if (!conversionResult || !sourceData) return;
+    setIsDownloading(true);
+    try {
+      const baseName = sourceData.name.replace(/\.[^/.]+$/, "");
+      const zipBlob = await createZipExport(baseName, conversionResult.rawMarkdownWithRelativePaths, conversionResult.assets);
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${baseName}_markdown.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to generate zip:', err);
+      alert('Failed to generate ZIP export.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const resetView = () => {
     setSourceData(null);
-    setMarkdown('');
+    setConversionResult(null);
     setError('');
     setParseStats(null);
   };
@@ -157,18 +186,39 @@ export default function Elegant() {
               <span className="material-symbols-outlined text-primary">description</span>
               Document Parser
             </div>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-3 items-center">
+              {conversionResult && conversionResult.assets.length > 0 && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tertiary/10 border border-tertiary/20 text-tertiary text-xs font-label-caps">
+                  <span className="material-symbols-outlined text-sm">photo_library</span>
+                  {conversionResult.assets.length} Image{conversionResult.assets.length > 1 ? 's' : ''} Extracted
+                </div>
+              )}
               <button 
                 onClick={resetView}
                 className="glass-panel text-on-surface-variant hover:text-primary px-4 py-2 rounded-lg font-label-caps text-label-caps flex items-center gap-2 transition-all duration-200 active:scale-95"
               >
-                <span className="material-symbols-outlined text-sm">restart_alt</span> New Conversion
+                <span className="material-symbols-outlined text-sm">restart_alt</span> New
               </button>
+              
               <button 
-                onClick={downloadMarkdown}
-                className="btn-primary-glow px-4 py-2 rounded-lg font-label-caps text-label-caps flex items-center gap-2 transition-all duration-200 active:scale-95"
+                onClick={downloadMarkdownBase64}
+                className="glass-panel text-on-surface hover:text-primary px-4 py-2 rounded-lg font-label-caps text-label-caps flex items-center gap-2 transition-all duration-200 active:scale-95 border-primary/30"
+                title="Download single self-contained Markdown with Base64 embedded images"
               >
-                <span className="material-symbols-outlined text-sm">download</span> Download .md
+                <span className="material-symbols-outlined text-sm text-primary">description</span> 
+                Download .md (Base64)
+              </button>
+
+              <button 
+                onClick={downloadZip}
+                disabled={isDownloading}
+                className="btn-primary-glow px-4 py-2 rounded-lg font-label-caps text-label-caps flex items-center gap-2 transition-all duration-200 active:scale-95"
+                title="Download ZIP package with Markdown and separate images/ folder"
+              >
+                <span className="material-symbols-outlined text-sm">
+                  {isDownloading ? 'progress_activity' : 'folder_zip'}
+                </span> 
+                {isDownloading ? 'Zipping...' : 'Download .zip (Packaged)'}
               </button>
             </div>
           </div>
@@ -209,21 +259,39 @@ export default function Elegant() {
                   <DocumentPreview name={sourceData.name} content={sourceData.content} className="flex-grow" />
                 ) : (
                   <div className="p-8 overflow-y-auto font-body-rt text-body-rt text-on-surface/80 flex-grow streaming-text">
-                    <MarkStream content={markdown} />
+                    <MarkStream content={conversionResult?.markdown || ''} />
                   </div>
                 )}
               </div>
             </div>
 
             <div className="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden">
-              <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50">
-                <span className="font-label-caps text-label-caps text-secondary">Raw Markdown</span>
-                <button onClick={copyToClipboard} className="text-outline hover:text-secondary transition-colors" title="Copy to clipboard">
+              <div className="px-4 py-3 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50">
+                <div className="flex items-center gap-2">
+                  <span className="font-label-caps text-label-caps text-secondary">Raw Markdown</span>
+                  {conversionResult && conversionResult.assets.length > 0 && (
+                    <div className="flex items-center gap-1 bg-black/20 p-0.5 rounded text-[11px] font-label-caps">
+                      <button
+                        onClick={() => setRawMarkdownMode('base64')}
+                        className={`px-2 py-0.5 rounded transition-all ${rawMarkdownMode === 'base64' ? 'bg-primary/20 text-primary font-bold' : 'text-outline hover:text-on-surface'}`}
+                      >
+                        Base64
+                      </button>
+                      <button
+                        onClick={() => setRawMarkdownMode('relative')}
+                        className={`px-2 py-0.5 rounded transition-all ${rawMarkdownMode === 'relative' ? 'bg-secondary/20 text-secondary font-bold' : 'text-outline hover:text-on-surface'}`}
+                      >
+                        ./images
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <button onClick={copyToClipboard} className="text-outline hover:text-secondary transition-colors p-1" title="Copy to clipboard">
                   <span className="material-symbols-outlined text-sm">content_copy</span>
                 </button>
               </div>
               <div className="p-8 overflow-y-auto font-code-md text-code-md bg-background/80 flex-grow relative text-on-surface-variant whitespace-pre-wrap">
-                {markdown}
+                {rawMarkdownMode === 'base64' ? conversionResult?.rawMarkdownWithBase64 : conversionResult?.rawMarkdownWithRelativePaths}
               </div>
             </div>
           </div>

@@ -12,6 +12,7 @@
   "dependencies": {
     "@firecrawl/anydoc-wasm": "^0.1.9",
     "docx-preview": "^0.4.0",
+    "jszip": "^3.10.1",
     "markstream-react": "^0.0.55",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/jszip": "^3.4.0",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
