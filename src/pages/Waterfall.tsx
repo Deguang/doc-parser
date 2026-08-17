@@ -13,7 +13,12 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [outputMode, setOutputMode] = useState<'stream' | 'preview'>('stream');
+  const [isSyncScroll, setIsSyncScroll] = useState<boolean>(true);
+  const [leftScrollRatio, setLeftScrollRatio] = useState<number | null>(null);
   
+  const isUpdatingRightRef = useRef(false);
+  const isUpdatingLeftRef = useRef(false);
+
   const [streamedContent, setStreamedContent] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
   
@@ -231,6 +236,32 @@ function App() {
     setIsStreaming(false);
   };
 
+  const handleLeftScrollRatioChange = (ratio: number) => {
+    if (!isSyncScroll || isUpdatingRightRef.current || !outputRef.current) return;
+    const target = outputRef.current;
+    const maxScroll = target.scrollHeight - target.clientHeight;
+    if (maxScroll > 0) {
+      isUpdatingLeftRef.current = true;
+      target.scrollTop = ratio * maxScroll;
+      setTimeout(() => {
+        isUpdatingLeftRef.current = false;
+      }, 50);
+    }
+  };
+
+  const handleOutputScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!isSyncScroll || isUpdatingLeftRef.current) return;
+    const target = e.currentTarget;
+    const maxScroll = target.scrollHeight - target.clientHeight;
+    if (maxScroll > 0) {
+      isUpdatingRightRef.current = true;
+      setLeftScrollRatio(target.scrollTop / maxScroll);
+      setTimeout(() => {
+        isUpdatingRightRef.current = false;
+      }, 50);
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col w-full h-[calc(100vh-64px)] overflow-hidden antialiased">
       {/* Main Content */}
@@ -279,6 +310,18 @@ function App() {
                     {conversionResult.assets.length} Image{conversionResult.assets.length > 1 ? 's' : ''}
                   </div>
                 )}
+                <button
+                  onClick={() => setIsSyncScroll(!isSyncScroll)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-label-caps flex items-center gap-1.5 transition-all duration-200 active:scale-95 ${
+                    isSyncScroll
+                      ? 'bg-secondary/20 text-secondary border border-secondary/40 shadow-[0_0_10px_rgba(76,215,246,0.2)] font-semibold'
+                      : 'glass-panel text-on-surface-variant hover:text-on-surface border border-white/10'
+                  }`}
+                  title="Synchronize scrolling between source document and markdown output"
+                >
+                  <span className="material-symbols-outlined text-sm">{isSyncScroll ? 'sync' : 'sync_disabled'}</span>
+                  Sync Scroll
+                </button>
                 <button className="glass-panel text-on-surface-variant hover:text-primary px-3 py-1.5 rounded-lg font-label-caps text-xs flex items-center gap-1 transition-all duration-200 active:scale-95 magnetic-btn" onClick={resetView}>
                   <span className="material-symbols-outlined text-sm">restart_alt</span> New
                 </button>
@@ -318,7 +361,13 @@ function App() {
                   </span>
                 </div>
                 <div className="flex-grow overflow-hidden relative flex flex-col bg-white/5" id="input-viewer">
-                  <DocumentPreview name={sourceData.name} content={sourceData.content} className="flex-grow" />
+                  <DocumentPreview 
+                    name={sourceData.name} 
+                    content={sourceData.content} 
+                    className="flex-grow" 
+                    onScrollRatioChange={handleLeftScrollRatioChange}
+                    externalScrollRatio={leftScrollRatio}
+                  />
                   {isStreaming && <div className="doc-scanner" style={{opacity: 1}}></div>}
                 </div>
               </div>
@@ -371,7 +420,12 @@ function App() {
                   </div>
                 </div>
                 
-                <div className="p-6 overflow-y-auto font-body-rt text-body-rt flex-grow relative bg-background/80" id="markdown-output" ref={outputRef}>
+                <div 
+                  className="p-6 overflow-y-auto font-body-rt text-body-rt flex-grow relative bg-background/80" 
+                  id="markdown-output" 
+                  ref={outputRef}
+                  onScroll={handleOutputScroll}
+                >
                   {outputMode === 'preview' ? (
                     <div className="w-full">
                       <MarkdownRenderer 

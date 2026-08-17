@@ -16,6 +16,13 @@ export default function Elegant() {
   const [leftTab, setLeftTab] = useState<'preview' | 'rendered'>('preview');
   const [rawMarkdownMode, setRawMarkdownMode] = useState<'base64' | 'relative'>('relative');
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSyncScroll, setIsSyncScroll] = useState<boolean>(true);
+  const [leftScrollRatio, setLeftScrollRatio] = useState<number | null>(null);
+
+  const rightOutputRef = useRef<HTMLDivElement>(null);
+  const isUpdatingRightRef = useRef(false);
+  const isUpdatingLeftRef = useRef(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prevResultRef = useRef<ConversionResult | null>(null);
 
@@ -142,6 +149,32 @@ export default function Elegant() {
     }
   };
 
+  const handleLeftScrollRatioChange = (ratio: number) => {
+    if (!isSyncScroll || isUpdatingRightRef.current || !rightOutputRef.current) return;
+    const target = rightOutputRef.current;
+    const maxScroll = target.scrollHeight - target.clientHeight;
+    if (maxScroll > 0) {
+      isUpdatingLeftRef.current = true;
+      target.scrollTop = ratio * maxScroll;
+      setTimeout(() => {
+        isUpdatingLeftRef.current = false;
+      }, 50);
+    }
+  };
+
+  const handleOutputScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!isSyncScroll || isUpdatingLeftRef.current) return;
+    const target = e.currentTarget;
+    const maxScroll = target.scrollHeight - target.clientHeight;
+    if (maxScroll > 0) {
+      isUpdatingRightRef.current = true;
+      setLeftScrollRatio(target.scrollTop / maxScroll);
+      setTimeout(() => {
+        isUpdatingRightRef.current = false;
+      }, 50);
+    }
+  };
+
   const resetView = () => {
     revokeConversionAssets(prevResultRef.current);
     prevResultRef.current = null;
@@ -214,6 +247,18 @@ export default function Elegant() {
                     {conversionResult.assets.length} Image{conversionResult.assets.length > 1 ? 's' : ''}
                   </div>
                 )}
+                <button
+                  onClick={() => setIsSyncScroll(!isSyncScroll)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-label-caps flex items-center gap-1.5 transition-all duration-200 active:scale-95 ${
+                    isSyncScroll
+                      ? 'bg-secondary/20 text-secondary border border-secondary/40 shadow-[0_0_10px_rgba(76,215,246,0.2)] font-semibold'
+                      : 'glass-panel text-on-surface-variant hover:text-on-surface border border-white/10'
+                  }`}
+                  title="Synchronize scrolling between source document and markdown output"
+                >
+                  <span className="material-symbols-outlined text-sm">{isSyncScroll ? 'sync' : 'sync_disabled'}</span>
+                  Sync Scroll
+                </button>
                 <button className="glass-panel text-on-surface-variant hover:text-primary px-3 py-1.5 rounded-lg font-label-caps text-xs flex items-center gap-1 transition-all duration-200 active:scale-95" onClick={resetView}>
                   <span className="material-symbols-outlined text-sm">restart_alt</span> New
                 </button>
@@ -271,43 +316,60 @@ export default function Elegant() {
                 </div>
                 <div className="overflow-hidden flex-grow relative flex flex-col bg-white/5">
                   {leftTab === 'preview' ? (
-                    <DocumentPreview name={sourceData.name} content={sourceData.content} className="flex-grow" />
+                    <DocumentPreview 
+                      name={sourceData.name} 
+                      content={sourceData.content} 
+                      className="flex-grow" 
+                      onScrollRatioChange={handleLeftScrollRatioChange}
+                      externalScrollRatio={leftScrollRatio}
+                    />
                   ) : (
-                    <div className="p-6 overflow-y-auto font-body-rt text-body-rt flex-grow">
+                    <div 
+                      className="p-6 overflow-y-auto font-body-rt text-body-rt flex-grow"
+                      onScroll={handleLeftScrollRatioChange ? (e) => {
+                        const target = e.currentTarget;
+                        const maxScroll = target.scrollHeight - target.clientHeight;
+                        if (maxScroll > 0) handleLeftScrollRatioChange(target.scrollTop / maxScroll);
+                      } : undefined}
+                    >
                       <MarkdownRenderer content={conversionResult?.markdown || '*(No content)*'} />
                     </div>
                   )}
                 </div>
               </div>
 
-            <div className="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50">
-                <div className="flex items-center gap-2">
-                  <span className="font-label-caps text-label-caps text-secondary">Raw Markdown</span>
-                  {conversionResult && conversionResult.assets.length > 0 && (
-                    <div className="flex items-center gap-1 bg-black/20 p-0.5 rounded text-[11px] font-label-caps">
-                      <button
-                        onClick={() => setRawMarkdownMode('base64')}
-                        className={`px-2 py-0.5 rounded transition-all ${rawMarkdownMode === 'base64' ? 'bg-primary/20 text-primary font-bold' : 'text-outline hover:text-on-surface'}`}
-                      >
-                        Base64
-                      </button>
-                      <button
-                        onClick={() => setRawMarkdownMode('relative')}
-                        className={`px-2 py-0.5 rounded transition-all ${rawMarkdownMode === 'relative' ? 'bg-secondary/20 text-secondary font-bold' : 'text-outline hover:text-on-surface'}`}
-                      >
-                        ./images
-                      </button>
-                    </div>
-                  )}
+              <div className="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden border border-white/10">
+                <div className="px-4 py-2.5 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50">
+                  <div className="flex items-center gap-2">
+                    <span className="font-label-caps text-label-caps text-secondary">Raw Markdown</span>
+                    {conversionResult && conversionResult.assets.length > 0 && (
+                      <div className="flex items-center gap-1 bg-black/20 p-0.5 rounded text-[11px] font-label-caps">
+                        <button
+                          onClick={() => setRawMarkdownMode('base64')}
+                          className={`px-2 py-0.5 rounded transition-all ${rawMarkdownMode === 'base64' ? 'bg-primary/20 text-primary font-bold' : 'text-outline hover:text-on-surface'}`}
+                        >
+                          Base64
+                        </button>
+                        <button
+                          onClick={() => setRawMarkdownMode('relative')}
+                          className={`px-2 py-0.5 rounded transition-all ${rawMarkdownMode === 'relative' ? 'bg-secondary/20 text-secondary font-bold' : 'text-outline hover:text-on-surface'}`}
+                        >
+                          ./images
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={copyToClipboard} className="text-outline hover:text-secondary transition-colors p-1" title="Copy to clipboard">
+                    <span className="material-symbols-outlined text-sm">content_copy</span>
+                  </button>
                 </div>
-                <button onClick={copyToClipboard} className="text-outline hover:text-secondary transition-colors p-1" title="Copy to clipboard">
-                  <span className="material-symbols-outlined text-sm">content_copy</span>
-                </button>
-              </div>
-              <div className="p-6 overflow-y-auto font-code-md text-code-md bg-background/80 flex-grow relative text-on-surface-variant whitespace-pre-wrap">
-                {rawMarkdownMode === 'base64' ? rawBase64Markdown : conversionResult?.rawMarkdownWithRelativePaths}
-              </div>
+                <div 
+                  ref={rightOutputRef}
+                  onScroll={handleOutputScroll}
+                  className="p-6 overflow-y-auto font-code-md text-code-md bg-background/80 flex-grow relative text-on-surface-variant whitespace-pre-wrap"
+                >
+                  {rawMarkdownMode === 'base64' ? rawBase64Markdown : conversionResult?.rawMarkdownWithRelativePaths}
+                </div>
               </div>
             </div>
           </section>

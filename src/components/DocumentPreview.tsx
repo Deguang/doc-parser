@@ -5,9 +5,17 @@ interface DocumentPreviewProps {
   name: string;
   content: Uint8Array;
   className?: string;
+  onScrollRatioChange?: (ratio: number) => void;
+  externalScrollRatio?: number | null;
 }
 
-export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content, className = '' }) => {
+export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ 
+  name, 
+  content, 
+  className = '',
+  onScrollRatioChange,
+  externalScrollRatio
+}) => {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -15,6 +23,8 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content,
   const [zoom, setZoom] = useState<number>(85); // Default to 85% for optimal sidebar fit
 
   const docxContainerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isSelfScrollingRef = useRef(false);
   const ext = name.split('.').pop()?.toLowerCase() || '';
 
   useEffect(() => {
@@ -97,24 +107,50 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content,
     };
   }, [name, content, ext]);
 
+  // Synchronize incoming external scroll position
+  useEffect(() => {
+    if (externalScrollRatio !== null && externalScrollRatio !== undefined && scrollContainerRef.current) {
+      if (isSelfScrollingRef.current) return;
+      const target = scrollContainerRef.current;
+      const maxScroll = target.scrollHeight - target.clientHeight;
+      if (maxScroll > 0) {
+        target.scrollTop = externalScrollRatio * maxScroll;
+      }
+    }
+  }, [externalScrollRatio]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    const maxScroll = target.scrollHeight - target.clientHeight;
+    if (maxScroll > 0 && onScrollRatioChange) {
+      isSelfScrollingRef.current = true;
+      onScrollRatioChange(target.scrollTop / maxScroll);
+      setTimeout(() => {
+        isSelfScrollingRef.current = false;
+      }, 50);
+    }
+  };
+
   const ZoomToolbar = () => (
-    <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1 bg-surface-container-high/90 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 shadow-lg text-xs font-label-caps">
+    <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-surface-container-high/90 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 shadow-lg z-20">
       <button
-        onClick={() => setZoom(z => Math.max(30, z - 10))}
-        className="p-1 hover:text-primary transition-colors flex items-center justify-center rounded hover:bg-white/5"
-        title="Zoom out"
+        onClick={() => setZoom(prev => Math.max(30, prev - 15))}
+        className="text-outline hover:text-on-surface hover:bg-white/5 p-1 rounded transition-colors"
+        title="Zoom Out"
       >
-        <span className="material-symbols-outlined text-sm">remove</span>
+        <span className="material-symbols-outlined text-xs">remove</span>
       </button>
-      <span className="px-1 min-w-[36px] text-center font-mono text-[11px] text-on-surface">{zoom}%</span>
+      <span className="text-[11px] font-label-caps font-mono w-10 text-center text-on-surface-variant select-none">
+        {zoom}%
+      </span>
       <button
-        onClick={() => setZoom(z => Math.min(200, z + 10))}
-        className="p-1 hover:text-primary transition-colors flex items-center justify-center rounded hover:bg-white/5"
-        title="Zoom in"
+        onClick={() => setZoom(prev => Math.min(200, prev + 15))}
+        className="text-outline hover:text-on-surface hover:bg-white/5 p-1 rounded transition-colors"
+        title="Zoom In"
       >
-        <span className="material-symbols-outlined text-sm">add</span>
+        <span className="material-symbols-outlined text-xs">add</span>
       </button>
-      <div className="w-[1px] h-3 bg-white/10 mx-0.5"></div>
+      <div className="w-px h-3 bg-white/10 mx-0.5" />
       <button
         onClick={() => setZoom(100)}
         className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${zoom === 100 ? 'bg-primary/20 text-primary' : 'text-outline hover:text-on-surface hover:bg-white/5'}`}
@@ -148,7 +184,11 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content,
             {error}
           </div>
         )}
-        <div className="flex-grow overflow-auto p-4 flex justify-center">
+        <div 
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="flex-grow overflow-auto p-4 flex justify-center"
+        >
           <div 
             style={{ 
               transform: `scale(${zoom / 100})`, 
@@ -186,7 +226,11 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content,
   // Image Preview
   if (['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif', 'bmp'].includes(ext) && objectUrl) {
     return (
-      <div className={`w-full h-full relative flex items-center justify-center p-6 bg-surface-container-low/40 rounded-lg overflow-auto ${className}`}>
+      <div 
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className={`w-full h-full relative flex items-center justify-center p-6 bg-surface-container-low/40 rounded-lg overflow-auto ${className}`}
+      >
         <div 
           className="flex items-center justify-center transition-transform duration-150 ease-out"
           style={{ transform: `scale(${zoom / 100})` }}
@@ -206,7 +250,11 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content,
   if (textContent !== null) {
     return (
       <div className={`w-full h-full relative overflow-hidden bg-surface-container-low/40 rounded-lg ${className}`}>
-        <div className="w-full h-full overflow-auto p-4 font-code-md text-xs leading-relaxed text-on-surface/90">
+        <div 
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="w-full h-full overflow-auto p-4 font-code-md text-xs leading-relaxed text-on-surface/90"
+        >
           <pre 
             className="whitespace-pre-wrap break-words font-mono select-text transition-transform duration-150 ease-out"
             style={{ 
