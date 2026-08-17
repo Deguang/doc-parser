@@ -113,6 +113,41 @@ export function getBase64Markdown(result: ConversionResult): string {
   });
 }
 
+/**
+ * Attaches fresh, revokable Blob URLs strictly on the main thread.
+ */
+export function attachMainThreadBlobUrls(result: ConversionResult): ConversionResult {
+  if (!result || !result.assets || result.assets.length === 0) return result;
+  
+  const blobMap = new Map<string, string>();
+  for (const asset of result.assets) {
+    if (!asset.blobUrl && typeof URL !== 'undefined' && typeof Blob !== 'undefined') {
+      try {
+        const blob = new Blob([asset.data as unknown as BlobPart], { type: asset.mediaType });
+        asset.blobUrl = URL.createObjectURL(blob);
+        blobMap.set(asset.filename, asset.blobUrl);
+        blobMap.set(`./${asset.filename}`, asset.blobUrl);
+      } catch (e) {
+        // fallback
+      }
+    }
+  }
+
+  // Replace relative paths with main-thread Blob URLs in markdown
+  if (blobMap.size > 0 && result.rawMarkdownWithRelativePaths) {
+    result.markdown = result.rawMarkdownWithRelativePaths.replace(/\(!?\[.*?\]\(([^)]+)\)|\((images\/[^)]+)\)|\(\.\/(images\/[^)]+)\)/g, (match, p1, p2, p3) => {
+      const target = p1 || p2 || p3;
+      const bUrl = blobMap.get(target) || blobMap.get(`./${target}`) || blobMap.get(target?.replace(/^\.\//, ''));
+      if (bUrl) {
+        return match.replace(target, bUrl);
+      }
+      return match;
+    });
+  }
+
+  return result;
+}
+
 export function processDocument(bytes: Uint8Array, format: Format | null): ConversionResult {
   let doc: Document | null = null;
   const processedAssets: ProcessedAsset[] = [];
@@ -129,29 +164,17 @@ export function processDocument(bytes: Uint8Array, format: Format | null): Conve
     }
   }
 
-  // Process assets if available (using memory-efficient Blob URLs)
+  // Process assets if available (do not create Blob URLs in Worker to prevent unrevokable memory leak)
   if (doc && doc.assets && doc.assets.length > 0) {
     doc.assets.forEach((asset, idx) => {
       const ext = mimeToExt(asset.mediaType);
       const filename = `images/image_${asset.id !== undefined ? asset.id : idx + 1}.${ext}`;
-      
-      let blobUrl: string | undefined = undefined;
-      // In browser environment, create Blob URL for zero-copy rendering
-      if (typeof URL !== 'undefined' && typeof Blob !== 'undefined') {
-        try {
-          const blob = new Blob([asset.data as unknown as BlobPart], { type: asset.mediaType });
-          blobUrl = URL.createObjectURL(blob);
-        } catch (e) {
-          // fallback in environments without blob
-        }
-      }
 
       processedAssets.push({
         id: asset.id !== undefined ? asset.id : idx,
         mediaType: asset.mediaType,
         filename,
         data: asset.data,
-        blobUrl,
       });
     });
   }
@@ -166,20 +189,12 @@ export function processDocument(bytes: Uint8Array, format: Format | null): Conve
       const a = assetMap.get(id);
       return a ? `./${a.filename}` : '';
     });
-    
-    let markdownWithBlob = markdownWithRelative;
-    if (processedAssets.length > 0) {
-      markdownWithBlob = renderBlocksToMarkdown(doc.blocks, id => {
-        const a = assetMap.get(id);
-        return a ? (a.blobUrl || `./${a.filename}`) : '';
-      });
-    }
 
     // Immediately dereference AST to allow garbage collection
     doc = null;
 
     return {
-      markdown: markdownWithBlob,
+      markdown: markdownWithRelative,
       assets: processedAssets,
       rawMarkdownWithRelativePaths: markdownWithRelative,
     };
