@@ -50,7 +50,7 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
         loadingTask = pdfjsLib.getDocument({ url: src });
         docProxy = await loadingTask.promise;
         if (!active) {
-          try { docProxy.cleanup(); } catch (e) {}
+          try { docProxy?.cleanup(); } catch (e) {}
           try { loadingTask.destroy(); } catch (e) {}
           return;
         }
