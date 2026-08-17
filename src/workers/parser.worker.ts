@@ -62,7 +62,8 @@ self.onmessage = async (e: MessageEvent<WorkerParseRequest>) => {
       }
     }
 
-    self.postMessage(response, transferables);
+    // @ts-ignore
+    (self as any).postMessage(response, transferables);
   } catch (err: any) {
     console.error('Worker parse error:', err);
     let errorMessage = err?.message || 'Failed to parse document.';

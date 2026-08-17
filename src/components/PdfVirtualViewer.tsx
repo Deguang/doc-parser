@@ -57,10 +57,10 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
         }
         
         setPdfDoc(docProxy);
-        setNumPages(docProxy.numPages);
+        setNumPages(docProxy!.numPages);
         
-        if (docProxy.numPages > 0) {
-          const firstPage = await docProxy.getPage(1);
+        if (docProxy!.numPages > 0) {
+          const firstPage = await docProxy!.getPage(1);
           const viewport = firstPage.getViewport({ scale: 1.0 });
           setBaseDimensions({ width: viewport.width, height: viewport.height });
         }
