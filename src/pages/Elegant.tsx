@@ -138,23 +138,28 @@ export default function Elegant() {
   const leftScrollRef = useRef<HTMLDivElement | null>(null);
   const isSyncingRef = useRef<boolean>(false);
 
-  // High-performance direct DOM scroll sync without React re-renders
+  // High-performance direct DOM scroll sync without React re-renders and infinite loops
   useEffect(() => {
     if (!isSyncScroll) return;
 
     const leftEl = leftScrollRef.current;
     const rightEl = rightOutputRef.current;
+    let syncTimeoutId: number | null = null;
 
     const handleLeftScroll = () => {
       if (isSyncingRef.current || !rightEl || !leftEl) return;
       const leftMax = leftEl.scrollHeight - leftEl.clientHeight;
       const rightMax = rightEl.scrollHeight - rightEl.clientHeight;
       if (leftMax > 0 && rightMax > 0) {
-        isSyncingRef.current = true;
-        rightEl.scrollTop = (leftEl.scrollTop / leftMax) * rightMax;
-        requestAnimationFrame(() => {
-          isSyncingRef.current = false;
-        });
+        const targetScroll = (leftEl.scrollTop / leftMax) * rightMax;
+        if (Math.abs(rightEl.scrollTop - targetScroll) > 2) {
+          isSyncingRef.current = true;
+          rightEl.scrollTop = targetScroll;
+          if (syncTimeoutId) clearTimeout(syncTimeoutId);
+          syncTimeoutId = window.setTimeout(() => {
+            isSyncingRef.current = false;
+          }, 50);
+        }
       }
     };
 
@@ -163,11 +168,15 @@ export default function Elegant() {
       const leftMax = leftEl.scrollHeight - leftEl.clientHeight;
       const rightMax = rightEl.scrollHeight - rightEl.clientHeight;
       if (leftMax > 0 && rightMax > 0) {
-        isSyncingRef.current = true;
-        leftEl.scrollTop = (rightEl.scrollTop / rightMax) * leftMax;
-        requestAnimationFrame(() => {
-          isSyncingRef.current = false;
-        });
+        const targetScroll = (rightEl.scrollTop / rightMax) * leftMax;
+        if (Math.abs(leftEl.scrollTop - targetScroll) > 2) {
+          isSyncingRef.current = true;
+          leftEl.scrollTop = targetScroll;
+          if (syncTimeoutId) clearTimeout(syncTimeoutId);
+          syncTimeoutId = window.setTimeout(() => {
+            isSyncingRef.current = false;
+          }, 50);
+        }
       }
     };
 
@@ -177,6 +186,7 @@ export default function Elegant() {
     return () => {
       leftEl?.removeEventListener('scroll', handleLeftScroll);
       rightEl?.removeEventListener('scroll', handleRightScroll);
+      if (syncTimeoutId) clearTimeout(syncTimeoutId);
     };
   }, [isSyncScroll, sourceData, leftTab]);
 
@@ -388,6 +398,19 @@ export default function Elegant() {
           </section>
         )}
       </main>
+
+      {/* Footer */}
+      <footer className="bg-surface-container-lowest/90 border-t border-white/5 full-width py-2 shrink-0">
+        <div className="flex flex-row justify-between items-center px-4 md:px-margin-page py-2 w-full max-w-container-max mx-auto">
+          <div className="font-label-caps text-xs text-on-surface-variant">
+            © 2024 Lumina Systems. All transformations local-only.
+          </div>
+          <div className="flex gap-6 font-label-caps text-xs">
+            <span className="text-outline">Engine: Lumina-v2 (WASM)</span>
+            <span className="text-outline">Privacy: 100% Local</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
