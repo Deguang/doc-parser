@@ -1,4 +1,3 @@
-import init from '@firecrawl/anydoc-wasm';
 import wasmUrl from '@firecrawl/anydoc-wasm/anydoc_wasm_bg.wasm?url';
 import { useState, useEffect } from 'react';
 
@@ -68,27 +67,25 @@ class WasmManager {
         this.state.totalBytes = expectedTotal;
 
         if (!response.body) {
-          // Fallback if ReadableStream is not available
-          const buffer = await response.arrayBuffer();
-          this.state.stage = 'compiling';
-          this.state.progress = 100;
-          this.notify();
-          await init(buffer);
-          this.state.stage = 'ready';
+          this.state = {
+            stage: 'ready',
+            progress: 100,
+            loadedBytes: expectedTotal,
+            totalBytes: expectedTotal,
+          };
           this.notify();
           return;
         }
 
         const reader = response.body.getReader();
-        const chunks: Uint8Array[] = [];
         let receivedBytes = 0;
 
+        // Drain stream to report accurate download progress to the UI
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
           if (value) {
-            chunks.push(value);
             receivedBytes += value.length;
             const progress = Math.min(99, Math.round((receivedBytes / expectedTotal) * 100));
             this.state.loadedBytes = receivedBytes;
@@ -96,21 +93,6 @@ class WasmManager {
             this.notify();
           }
         }
-
-        // Merge chunks
-        this.state.stage = 'compiling';
-        this.state.progress = 99;
-        this.notify();
-
-        const allBytes = new Uint8Array(receivedBytes);
-        let offset = 0;
-        for (const chunk of chunks) {
-          allBytes.set(chunk, offset);
-          offset += chunk.length;
-        }
-
-        // Initialize WASM module with memory buffer
-        await init(allBytes);
 
         this.state = {
           stage: 'ready',
@@ -120,16 +102,14 @@ class WasmManager {
         };
         this.notify();
       } catch (err: any) {
-        console.error('WASM loading error:', err);
+        console.error('WASM cache warming error:', err);
         this.state = {
-          stage: 'error',
-          progress: 0,
-          loadedBytes: 0,
-          totalBytes: 0,
-          error: err?.message || 'Failed to initialize WASM engine.',
+          stage: 'ready', // Non-fatal, workers will load directly via URL
+          progress: 100,
+          loadedBytes: 6753520,
+          totalBytes: 6753520,
         };
         this.notify();
-        throw err;
       }
     })();
 
