@@ -40,7 +40,6 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
     }
   }, [scrollRef, containerRef.current]);
 
-  // Load PDF document
   useEffect(() => {
     let active = true;
     let docProxy: pdfjsLib.PDFDocumentProxy | null = null;
@@ -51,7 +50,8 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
         loadingTask = pdfjsLib.getDocument({ url: src });
         docProxy = await loadingTask.promise;
         if (!active) {
-          (docProxy as any).destroy();
+          try { docProxy.cleanup(); } catch (e) {}
+          try { loadingTask.destroy(); } catch (e) {}
           return;
         }
         
@@ -77,11 +77,11 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
 
     return () => {
       active = false;
-      if (loadingTask && !docProxy) {
+      if (loadingTask) {
         try { loadingTask.destroy(); } catch (e) {}
       }
       if (docProxy) {
-        (docProxy as any).destroy();
+        try { docProxy.cleanup(); } catch (e) {}
       }
       
       // Cleanup all cached pages on unmount
