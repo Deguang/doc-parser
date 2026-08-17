@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { renderAsync } from 'docx-preview';
+import { PdfVirtualViewer } from './PdfVirtualViewer';
 
 interface DocumentPreviewProps {
   name: string;
@@ -21,16 +22,10 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState<number>(85);
-  const [isPdfEmbeddedLoaded, setIsPdfEmbeddedLoaded] = useState<boolean>(false);
 
   const docxContainerRef = useRef<HTMLDivElement>(null);
   const internalScrollRef = useRef<HTMLDivElement>(null);
   const ext = name.split('.').pop()?.toLowerCase() || '';
-
-  // Reset PDF load state on file change
-  useEffect(() => {
-    setIsPdfEmbeddedLoaded(false);
-  }, [name]);
 
   const setScrollContainer = (el: HTMLDivElement | null) => {
     internalScrollRef.current = el;
@@ -237,74 +232,29 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     );
   }
 
-  // PDF Preview
-  if (ext === 'pdf') {
-    const totalSize = file ? file.size : (content?.length || 0);
-    const isLargePdf = totalSize > 8 * 1024 * 1024; // > 8MB
-
-    if (objectUrl) {
-      if (isLargePdf && !isPdfEmbeddedLoaded) {
-        return (
-          <div className={`w-full h-full flex flex-col items-center justify-center p-8 text-center text-slate-300 gap-4 bg-[#0d1117] rounded-lg ${className}`}>
-            <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-blue-400">
-              <span className="material-symbols-outlined text-3xl">picture_as_pdf</span>
-            </div>
-            <div>
-              <div className="font-semibold text-white text-base truncate max-w-sm" title={name}>{name}</div>
-              <div className="text-xs text-slate-400 mt-1 font-mono">
-                Large PDF Book • {(totalSize / 1024 / 1024).toFixed(1)} MB
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
-              <button
-                onClick={() => setIsPdfEmbeddedLoaded(true)}
-                className="btn-primary-glow px-3.5 py-1.5 rounded-lg text-xs font-medium text-white flex items-center gap-1.5 transition-all active:scale-95"
-              >
-                <span className="material-symbols-outlined text-xs">visibility</span>
-                Load Embedded PDF
-              </button>
-              <a
-                href={objectUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="px-3.5 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.1] text-xs font-medium text-slate-200 flex items-center gap-1.5 transition-all active:scale-95"
-              >
-                <span className="material-symbols-outlined text-xs">open_in_new</span>
-                Open in Separate Tab
-              </a>
-            </div>
-            <p className="text-[11px] text-slate-500 max-w-xs leading-relaxed">
-              Markdown has been parsed on the right pane. Embedded preview is optional to conserve GPU texture memory.
-            </p>
-          </div>
-        );
-      }
-
-      return (
-        <div className={`w-full h-full relative bg-[#0d1117] flex flex-col ${className}`}>
-          <div className="flex-1 w-full h-full relative overflow-hidden">
-            <iframe
-              src={`${objectUrl}#view=FitH`}
-              className="w-full h-full border-none rounded-lg"
-              title={`PDF Preview: ${name}`}
-            />
-          </div>
-          
-          <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-[#161d2a]/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/[0.08] shadow-md z-20">
-            <a
-              href={objectUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-slate-300 hover:text-white flex items-center gap-1 font-medium transition-colors"
-              title="Open full PDF in a separate tab"
-            >
-              <span className="material-symbols-outlined text-xs">open_in_new</span>
-              Pop-out PDF
-            </a>
-          </div>
+  // PDF Preview — Virtual page-by-page rendering via pdfjs
+  if (ext === 'pdf' && objectUrl) {
+    return (
+      <div className={`w-full h-full relative flex flex-col ${className}`}>
+        <PdfVirtualViewer
+          src={objectUrl}
+          className="flex-1"
+          scrollRef={scrollRef}
+        />
+        <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-[#161d2a]/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/[0.08] shadow-md z-20">
+          <a
+            href={objectUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-slate-300 hover:text-white flex items-center gap-1 font-medium transition-colors"
+            title="Open full PDF in a separate tab"
+          >
+            <span className="material-symbols-outlined text-xs">open_in_new</span>
+            Pop-out PDF
+          </a>
         </div>
-      );
-    }
+      </div>
+    );
   }
 
   // Image Preview

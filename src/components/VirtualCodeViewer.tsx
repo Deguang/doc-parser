@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 
 interface VirtualCodeViewerProps {
   content: string;
@@ -6,8 +6,7 @@ interface VirtualCodeViewerProps {
   className?: string;
 }
 
-const LINES_PER_CHUNK = 400; // 400 lines per virtualized chunk (~15-20 pages)
-const INITIAL_CHUNKS = 2;    // Show first ~800 lines (~30-40 pages) instantly
+const LINES_PER_CHUNK = 500; // 500 lines per virtualized chunk
 
 export const VirtualCodeViewer: React.FC<VirtualCodeViewerProps> = ({
   content,
@@ -30,23 +29,65 @@ export const VirtualCodeViewer: React.FC<VirtualCodeViewerProps> = ({
   }, [content, isLarge]);
 
   const totalChunks = chunks.length;
-  const [visibleChunkCount, setVisibleChunkCount] = useState<number>(
-    totalChunks > INITIAL_CHUNKS ? INITIAL_CHUNKS : totalChunks
-  );
 
+  // IntersectionObserver-based visibility tracking
+  const [visibleSet, setVisibleSet] = useState<Set<number>>(() => new Set([0, 1]));
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const chunkRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  // Reset visibility when content changes
   useEffect(() => {
-    setVisibleChunkCount(totalChunks > INITIAL_CHUNKS ? INITIAL_CHUNKS : totalChunks);
+    setVisibleSet(new Set([0, 1]));
   }, [totalChunks]);
 
-  const hasMore = visibleChunkCount < totalChunks;
+  // Setup IntersectionObserver for true virtual rendering
+  useEffect(() => {
+    if (!isLarge || totalChunks <= 2) return;
 
-  const handleLoadMore = () => {
-    setVisibleChunkCount(prev => Math.min(prev + 3, totalChunks));
-  };
+    const observer = new IntersectionObserver(
+      (entries) => {
+        setVisibleSet(prev => {
+          const next = new Set(prev);
+          let changed = false;
+          for (const entry of entries) {
+            const idx = Number(entry.target.getAttribute('data-chunk-idx'));
+            if (isNaN(idx)) continue;
+            if (entry.isIntersecting && !next.has(idx)) {
+              next.add(idx);
+              changed = true;
+            } else if (!entry.isIntersecting && next.has(idx)) {
+              next.delete(idx);
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+      },
+      {
+        rootMargin: '100% 0px', // 1 viewport buffer
+        threshold: 0,
+      }
+    );
 
-  const handleLoadAll = () => {
-    setVisibleChunkCount(totalChunks);
-  };
+    observerRef.current = observer;
+    chunkRefs.current.forEach((el) => observer.observe(el));
+
+    return () => {
+      observer.disconnect();
+      observerRef.current = null;
+    };
+  }, [isLarge, totalChunks]);
+
+  const setChunkRef = useCallback((idx: number, el: HTMLDivElement | null) => {
+    if (el) {
+      chunkRefs.current.set(idx, el);
+      observerRef.current?.observe(el);
+    } else {
+      const prev = chunkRefs.current.get(idx);
+      if (prev) observerRef.current?.unobserve(prev);
+      chunkRefs.current.delete(idx);
+    }
+  }, []);
 
   const totalLines = useMemo(() => (content ? content.split('\n').length : 0), [content]);
 
@@ -66,50 +107,43 @@ export const VirtualCodeViewer: React.FC<VirtualCodeViewerProps> = ({
     );
   }
 
-  const visibleChunks = chunks.slice(0, visibleChunkCount);
-  const renderedLines = Math.min(visibleChunkCount * LINES_PER_CHUNK, totalLines);
-
   return (
-    <div className="w-full flex flex-col gap-2">
-      {visibleChunks.map((chunkText, idx) => (
-        <pre
-          key={idx}
-          className={`whitespace-pre-wrap font-mono select-text text-xs leading-relaxed text-slate-300 ${className}`}
-          style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 600px' }}
-        >
-          {chunkText}
-          {idx === visibleChunks.length - 1 && isStreaming && (
-            <span className="inline-block w-2 h-4 bg-blue-400 animate-pulse ml-0.5 align-middle rounded-xs" />
-          )}
-        </pre>
-      ))}
+    <div className="w-full flex flex-col">
+      {chunks.map((chunkText, idx) => {
+        const isVisible = visibleSet.has(idx);
 
-      {hasMore && (
-        <div className="mt-4 p-3.5 rounded-xl bg-[#121722]/90 border border-white/[0.08] flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg backdrop-blur-md">
-          <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
-            <span className="material-symbols-outlined text-blue-400 text-base">code</span>
-            <span>
-              Book Preview: Showing lines 1–{renderedLines.toLocaleString()} of {totalLines.toLocaleString()}
-            </span>
+        return (
+          <div
+            key={idx}
+            ref={(el) => setChunkRef(idx, el)}
+            data-chunk-idx={idx}
+            style={{
+              minHeight: isVisible ? undefined : '800px',
+              contentVisibility: isVisible ? 'visible' : 'auto',
+              containIntrinsicSize: 'auto 800px',
+            }}
+          >
+            {isVisible ? (
+              <pre
+                className={`whitespace-pre-wrap font-mono select-text text-xs leading-relaxed text-slate-300 ${className}`}
+              >
+                {chunkText}
+                {idx === chunks.length - 1 && isStreaming && (
+                  <span className="inline-block w-2 h-4 bg-blue-400 animate-pulse ml-0.5 align-middle rounded-xs" />
+                )}
+              </pre>
+            ) : null}
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleLoadMore}
-              className="px-3 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-xs font-medium text-slate-200 transition-all active:scale-95 flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-xs">expand_more</span>
-              +1,200 Lines
-            </button>
-            <button
-              onClick={handleLoadAll}
-              className="btn-primary-glow px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all active:scale-95 flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-xs">read_more</span>
-              Show Entire Book
-            </button>
-          </div>
-        </div>
-      )}
+        );
+      })}
+
+      {/* Status bar */}
+      <div className="mt-4 p-3 rounded-xl bg-[#121722]/90 border border-white/[0.08] flex items-center gap-2 text-xs text-slate-400 font-mono">
+        <span className="material-symbols-outlined text-blue-400 text-base">code</span>
+        <span>
+          {totalLines.toLocaleString()} lines • {(content.length / 1024).toFixed(0)} KB • Virtual scroll active
+        </span>
+      </div>
     </div>
   );
 };

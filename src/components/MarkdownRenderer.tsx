@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { marked } from 'marked';
 
 interface MarkdownRendererProps {
@@ -13,10 +13,10 @@ marked.setOptions({
 });
 
 const CHUNK_SIZE_BYTES = 80 * 1024; // 80KB per virtualized chunk (~30 pages)
-const INITIAL_VISIBLE_CHUNKS = 2;   // Show first ~60 pages immediately
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className = '' }) => {
   const totalLength = content?.length || 0;
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Split content into clean paragraph-boundary chunks
   const allRawChunks = useMemo(() => {
@@ -52,105 +52,149 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
   }, [content]);
 
   const totalChunks = allRawChunks.length;
-  const isLarge = totalChunks > INITIAL_VISIBLE_CHUNKS;
 
-  const [visibleChunkCount, setVisibleChunkCount] = useState<number>(
-    isLarge ? INITIAL_VISIBLE_CHUNKS : totalChunks
-  );
+  // Track which chunks are visible via IntersectionObserver
+  const [visibleSet, setVisibleSet] = useState<Set<number>>(() => new Set([0, 1]));
 
-  // Incremental parse cache to avoid re-parsing previous chunks when expanding
+  // Incremental parse cache to avoid re-parsing chunks when they come back into view
   const parseCacheRef = useRef<Map<number, string>>(new Map());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const chunkRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
+  // Reset on content change
   useEffect(() => {
     parseCacheRef.current.clear();
-    setVisibleChunkCount(allRawChunks.length > INITIAL_VISIBLE_CHUNKS ? INITIAL_VISIBLE_CHUNKS : allRawChunks.length);
+    setVisibleSet(new Set([0, 1]));
     return () => {
-      // Release all cached parsed HTML strings on content change or unmount
       parseCacheRef.current.clear();
     };
   }, [allRawChunks]);
 
-  const hasMore = visibleChunkCount < totalChunks;
+  // Setup IntersectionObserver for true virtual rendering
+  useEffect(() => {
+    if (totalChunks <= 2) return; // Small docs don't need virtualization
 
-  // Pre-parse only visible chunks with caching
-  const parsedChunks = useMemo(() => {
-    const rendered: string[] = [];
-    const count = Math.min(visibleChunkCount, allRawChunks.length);
-    const cache = parseCacheRef.current;
-
-    for (let i = 0; i < count; i++) {
-      if (cache.has(i)) {
-        rendered.push(cache.get(i)!);
-      } else {
-        try {
-          const parsed = marked.parse(allRawChunks[i]) as string;
-          cache.set(i, parsed);
-          rendered.push(parsed);
-        } catch (err) {
-          console.error('Markdown chunk parse error:', err);
-          const fallback = `<pre class="whitespace-pre-wrap font-mono text-xs text-rose-400">${allRawChunks[i]}</pre>`;
-          cache.set(i, fallback);
-          rendered.push(fallback);
-        }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        setVisibleSet(prev => {
+          const next = new Set(prev);
+          let changed = false;
+          for (const entry of entries) {
+            const idx = Number(entry.target.getAttribute('data-chunk-idx'));
+            if (isNaN(idx)) continue;
+            if (entry.isIntersecting && !next.has(idx)) {
+              next.add(idx);
+              changed = true;
+            } else if (!entry.isIntersecting && next.has(idx)) {
+              next.delete(idx);
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+      },
+      {
+        // 1 viewport height buffer above/below for smooth scrolling
+        rootMargin: '100% 0px',
+        threshold: 0,
       }
+    );
+
+    observerRef.current = observer;
+
+    // Observe all chunk placeholders
+    chunkRefs.current.forEach((el) => {
+      observer.observe(el);
+    });
+
+    return () => {
+      observer.disconnect();
+      observerRef.current = null;
+    };
+  }, [totalChunks, allRawChunks]);
+
+  // Callback ref for chunk divs — observe/unobserve as they mount
+  const setChunkRef = useCallback((idx: number, el: HTMLDivElement | null) => {
+    if (el) {
+      chunkRefs.current.set(idx, el);
+      observerRef.current?.observe(el);
+    } else {
+      const prev = chunkRefs.current.get(idx);
+      if (prev) observerRef.current?.unobserve(prev);
+      chunkRefs.current.delete(idx);
     }
-    return rendered;
-  }, [allRawChunks, visibleChunkCount]);
+  }, []);
 
-  const handleLoadMore = () => {
-    setVisibleChunkCount(prev => Math.min(prev + 3, totalChunks));
-  };
-
-  const handleLoadAll = () => {
-    setVisibleChunkCount(totalChunks);
-  };
+  // Parse only chunks that are visible
+  const getParsedHtml = useCallback((idx: number): string | null => {
+    if (!visibleSet.has(idx)) return null;
+    const cache = parseCacheRef.current;
+    if (cache.has(idx)) return cache.get(idx)!;
+    try {
+      const parsed = marked.parse(allRawChunks[idx]) as string;
+      cache.set(idx, parsed);
+      return parsed;
+    } catch (err) {
+      console.error('Markdown chunk parse error:', err);
+      const fallback = `<pre class="whitespace-pre-wrap font-mono text-xs text-rose-400">${allRawChunks[idx]}</pre>`;
+      cache.set(idx, fallback);
+      return fallback;
+    }
+  }, [allRawChunks, visibleSet]);
 
   if (!content || !content.trim()) {
     return <p className="text-slate-500 text-sm italic">*(No content)*</p>;
   }
 
-  const renderedKB = Math.round((Math.min(visibleChunkCount, totalChunks) / totalChunks) * (totalLength / 1024));
-  const totalKB = Math.round(totalLength / 1024);
+  // Small doc: render everything directly
+  if (totalChunks <= 2) {
+    const allHtml = allRawChunks.map((chunk, i) => {
+      const cached = parseCacheRef.current.get(i);
+      if (cached) return cached;
+      try {
+        const parsed = marked.parse(chunk) as string;
+        parseCacheRef.current.set(i, parsed);
+        return parsed;
+      } catch {
+        return `<pre class="whitespace-pre-wrap font-mono text-xs text-rose-400">${chunk}</pre>`;
+      }
+    }).join('');
+
+    return (
+      <div
+        className={`w-full markdown-body prose prose-invert max-w-none text-slate-200 leading-relaxed text-sm font-body-rt ${className}`}
+        dangerouslySetInnerHTML={{ __html: allHtml }}
+      />
+    );
+  }
 
   return (
-    <div className={`w-full flex flex-col gap-2 ${className}`}>
-      {/* Chunk-Virtualized DOM Nodes */}
-      {parsedChunks.map((chunkHtml, idx) => (
-        <div
-          key={idx}
-          className="markdown-body prose prose-invert max-w-none text-slate-200 leading-relaxed text-sm font-body-rt"
-          style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 600px' }}
-          dangerouslySetInnerHTML={{ __html: chunkHtml }}
-        />
-      ))}
+    <div ref={containerRef} className={`w-full flex flex-col ${className}`}>
+      {allRawChunks.map((_, idx) => {
+        const html = getParsedHtml(idx);
+        const isVisible = visibleSet.has(idx);
 
-      {/* Memory-Safe Progressive Loading Banner */}
-      {hasMore && (
-        <div className="mt-6 p-4 rounded-xl bg-[#121722]/90 border border-white/[0.08] flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xl backdrop-blur-md">
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <span className="material-symbols-outlined text-blue-400 text-base">auto_stories</span>
-            <span>
-              Large Book Mode: Displaying <strong>{renderedKB} KB</strong> of <strong>{totalKB} KB</strong> ({visibleChunkCount} of {totalChunks} sections)
-            </span>
+        return (
+          <div
+            key={idx}
+            ref={(el) => setChunkRef(idx, el)}
+            data-chunk-idx={idx}
+            style={{
+              // Reserve space for off-screen chunks to maintain scroll position
+              minHeight: isVisible ? undefined : '600px',
+              contentVisibility: isVisible ? 'visible' : 'auto',
+              containIntrinsicSize: 'auto 600px',
+            }}
+          >
+            {html ? (
+              <div
+                className="markdown-body prose prose-invert max-w-none text-slate-200 leading-relaxed text-sm font-body-rt"
+                dangerouslySetInnerHTML={{ __html: html }}
+              />
+            ) : null}
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleLoadMore}
-              className="px-3 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-xs font-medium text-slate-200 transition-all active:scale-95 flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-xs">expand_more</span>
-              Load More (+3 Sections)
-            </button>
-            <button
-              onClick={handleLoadAll}
-              className="btn-primary-glow px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all active:scale-95 flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-xs">read_more</span>
-              Render All Sections
-            </button>
-          </div>
-        </div>
-      )}
+        );
+      })}
     </div>
   );
 };
