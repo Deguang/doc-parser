@@ -154,6 +154,10 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       if (url) {
         URL.revokeObjectURL(url);
       }
+      // Explicitly destroy docx-preview rendered DOM to prevent Detached DOM Tree leaks
+      if (docxContainerRef.current) {
+        docxContainerRef.current.innerHTML = '';
+      }
     };
   }, [name, content, file, ext]);
 

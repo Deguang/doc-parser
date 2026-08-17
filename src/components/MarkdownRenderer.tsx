@@ -64,6 +64,10 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
   useEffect(() => {
     parseCacheRef.current.clear();
     setVisibleChunkCount(allRawChunks.length > INITIAL_VISIBLE_CHUNKS ? INITIAL_VISIBLE_CHUNKS : allRawChunks.length);
+    return () => {
+      // Release all cached parsed HTML strings on content change or unmount
+      parseCacheRef.current.clear();
+    };
   }, [allRawChunks]);
 
   const hasMore = visibleChunkCount < totalChunks;
