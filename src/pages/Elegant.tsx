@@ -46,19 +46,21 @@ export default function Elegant() {
       const buffer = await file.arrayBuffer();
       const bytesForWorker = new Uint8Array(buffer.slice(0));
       const bytesForPreview = new Uint8Array(buffer);
-      setSourceData({ name: file.name, content: bytesForPreview });
       
       const ext = file.name.split('.').pop()?.toLowerCase() || 'txt';
       const format = formatFromExtension(ext) || null;
       
-      // Parse in background Web Worker off the main UI thread
+      // Parse in background Web Worker off the main UI thread with fallback
       const { result, stats } = await parseDocumentInWorker(bytesForWorker, format, file.name);
       
       prevResultRef.current = result;
+      setSourceData({ name: file.name, content: bytesForPreview });
       setConversionResult(result);
       setParseStats(stats);
     } catch (err: any) {
       console.error(err);
+      setSourceData(null);
+      setConversionResult(null);
       if (err.message?.includes('memory') || err.message?.includes('allocation')) {
         setError('Error: File is too large, causing an out-of-memory exception.');
       } else {

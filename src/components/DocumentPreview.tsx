@@ -51,26 +51,36 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content,
         }
         setLoading(false);
       } else if (ext === 'docx') {
-        if (docxContainerRef.current) {
-          docxContainerRef.current.innerHTML = '';
-          renderAsync(content.buffer, docxContainerRef.current, undefined, {
-            inWrapper: false,
-            ignoreWidth: true,
-            ignoreHeight: true,
-            ignoreFonts: false,
-            breakPages: true,
-            useBase64URL: true,
-            className: 'docx-rendered',
-          })
-            .then(() => {
-              setLoading(false);
+        setTimeout(() => {
+          if (!docxContainerRef.current) {
+            setLoading(false);
+            return;
+          }
+          try {
+            docxContainerRef.current.innerHTML = '';
+            renderAsync(content.buffer.slice(0), docxContainerRef.current, undefined, {
+              inWrapper: false,
+              ignoreWidth: true,
+              ignoreHeight: true,
+              ignoreFonts: false,
+              breakPages: true,
+              useBase64URL: true,
+              className: 'docx-rendered',
             })
-            .catch((err) => {
-              console.error('Docx render error:', err);
-              setError('Unable to parse Word document visual layout.');
-              setLoading(false);
-            });
-        }
+              .then(() => {
+                setLoading(false);
+              })
+              .catch((err) => {
+                console.warn('Docx preview render warning:', err);
+                setError('Visual Word preview unavailable for this document.');
+                setLoading(false);
+              });
+          } catch (e) {
+            console.warn('Docx sync preview error:', e);
+            setError('Visual Word preview unavailable for this document.');
+            setLoading(false);
+          }
+        }, 50);
       } else {
         setLoading(false);
       }

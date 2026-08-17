@@ -134,14 +134,15 @@ function App() {
       const buffer = await file.arrayBuffer();
       const bytesForWorker = new Uint8Array(buffer.slice(0));
       const bytesForPreview = new Uint8Array(buffer);
-      setSourceData({ name: file.name, content: bytesForPreview });
       
       const ext = file.name.split('.').pop()?.toLowerCase() || 'txt';
       const format = formatFromExtension(ext) || null;
       
-      // Execute in non-blocking Web Worker thread
+      // Execute in Web Worker thread with automatic main thread fallback
       const { result } = await parseDocumentInWorker(bytesForWorker, format, file.name);
+      
       prevResultRef.current = result;
+      setSourceData({ name: file.name, content: bytesForPreview });
       setConversionResult(result);
       
       // Start adaptive streaming animation
@@ -149,6 +150,8 @@ function App() {
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Error parsing document.');
+      setSourceData(null);
+      setConversionResult(null);
       setIsProcessing(false);
     }
   };
