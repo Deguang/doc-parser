@@ -27,6 +27,7 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const renderTasks = useRef<Map<number, any>>(new Map());
+  const pageProxies = useRef<Map<number, pdfjsLib.PDFPageProxy>>(new Map());
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   // Forward ref to the scroll container
@@ -44,10 +45,11 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
   useEffect(() => {
     let active = true;
     let docProxy: pdfjsLib.PDFDocumentProxy | null = null;
+    let loadingTask: any = null;
 
     const loadPdf = async () => {
       try {
-        const loadingTask = pdfjsLib.getDocument(src);
+        loadingTask = pdfjsLib.getDocument(src);
         docProxy = await loadingTask.promise;
         if (!active) {
           docProxy.destroy();
@@ -64,6 +66,7 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
             width: viewport.width,
             height: viewport.height
           });
+          firstPage.cleanup();
         }
       } catch (err) {
         console.error('Error loading PDF:', err);
@@ -76,6 +79,9 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
 
     return () => {
       active = false;
+      if (loadingTask && !docProxy) {
+        try { loadingTask.destroy(); } catch (e) {}
+      }
       if (docProxy) {
         docProxy.destroy();
       }
@@ -92,6 +98,10 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
         canvas.width = 0;
         canvas.height = 0;
       });
+      pageProxies.current.forEach(page => {
+        try { page.cleanup(); } catch (e) {}
+      });
+      pageProxies.current.clear();
     };
   }, []);
 
@@ -110,6 +120,7 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
 
     try {
       const page = await pdfDoc.getPage(pageNum);
+      pageProxies.current.set(pageNum, page);
       const dpr = window.devicePixelRatio || 1;
       const viewport = page.getViewport({ scale: zoom * dpr });
       
@@ -160,6 +171,10 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
       // Clear GPU texture memory by setting dimension to 0
       canvas.width = 0;
       canvas.height = 0;
+    }
+    const page = pageProxies.current.get(pageNum);
+    if (page) {
+      try { page.cleanup(); } catch (e) {}
     }
     setVisiblePages(prev => {
       const next = new Set(prev);
