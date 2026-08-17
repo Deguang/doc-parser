@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import init, { formatFromExtension } from '@firecrawl/anydoc-wasm';
-import MarkStream from 'markstream-react';
+import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { DocumentPreview } from '../components/DocumentPreview';
 import { createZipExport, getBase64Markdown, revokeConversionAssets, type ConversionResult } from '../utils/documentConverter';
 import { parseDocumentInWorker } from '../utils/workerManager';
@@ -273,8 +273,8 @@ export default function Elegant() {
                   {leftTab === 'preview' ? (
                     <DocumentPreview name={sourceData.name} content={sourceData.content} className="flex-grow" />
                   ) : (
-                    <div className="p-6 overflow-y-auto font-body-rt text-body-rt text-on-surface/90 flex-grow streaming-text markstream-container">
-                      <MarkStream content={conversionResult?.markdown || '*(No content)*'} isDark={true} final={true} />
+                    <div className="p-6 overflow-y-auto font-body-rt text-body-rt flex-grow">
+                      <MarkdownRenderer content={conversionResult?.markdown || '*(No content)*'} />
                     </div>
                   )}
                 </div>

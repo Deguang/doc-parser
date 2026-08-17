@@ -11,8 +11,10 @@
   },
   "dependencies": {
     "@firecrawl/anydoc-wasm": "^0.1.9",
+    "@types/marked": "^5.0.2",
     "docx-preview": "^0.4.0",
     "jszip": "^3.10.1",
+    "marked": "^18.0.9",
     "markstream-react": "^0.0.55",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import init, { formatFromExtension } from '@firecrawl/anydoc-wasm';
-import MarkStream from 'markstream-react';
+import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { DocumentPreview } from '../components/DocumentPreview';
 import { createZipExport, getBase64Markdown, revokeConversionAssets, type ConversionResult } from '../utils/documentConverter';
 import { parseDocumentInWorker } from '../utils/workerManager';
@@ -373,11 +373,9 @@ function App() {
                 
                 <div className="p-6 overflow-y-auto font-body-rt text-body-rt flex-grow relative bg-background/80" id="markdown-output" ref={outputRef}>
                   {outputMode === 'preview' ? (
-                    <div className="streaming-text text-on-surface/90 markstream-container w-full">
-                      <MarkStream 
+                    <div className="w-full">
+                      <MarkdownRenderer 
                         content={conversionResult?.markdown || '*(No content)*'} 
-                        isDark={true} 
-                        final={true} 
                       />
                     </div>
                   ) : (
