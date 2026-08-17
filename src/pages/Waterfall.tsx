@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import init, { formatFromExtension } from '@firecrawl/anydoc-wasm';
 import MarkStream from 'markstream-react';
 import { DocumentPreview } from '../components/DocumentPreview';
-import { createZipExport, type ConversionResult } from '../utils/documentConverter';
+import { createZipExport, getBase64Markdown, revokeConversionAssets, type ConversionResult } from '../utils/documentConverter';
 import { parseDocumentInWorker } from '../utils/workerManager';
 
 function App() {
@@ -22,6 +22,7 @@ function App() {
   const fullTextRef = useRef<string>('');
   const streamRafId = useRef<number | null>(null);
   const isCancelledRef = useRef<boolean>(false);
+  const prevResultRef = useRef<ConversionResult | null>(null);
 
   useEffect(() => {
     init().then(() => setIsReady(true)).catch(err => {
@@ -57,6 +58,7 @@ function App() {
       if (streamRafId.current !== null) {
         cancelAnimationFrame(streamRafId.current);
       }
+      revokeConversionAssets(prevResultRef.current);
     };
   }, []);
 
@@ -122,7 +124,11 @@ function App() {
     if (!file) return;
     setIsProcessing(true);
     setError('');
+    
+    // Revoke previous assets
+    revokeConversionAssets(prevResultRef.current);
     setConversionResult(null);
+    prevResultRef.current = null;
     
     try {
       const buffer = await file.arrayBuffer();
@@ -135,6 +141,7 @@ function App() {
       
       // Execute in non-blocking Web Worker thread
       const { result } = await parseDocumentInWorker(bytesForWorker, format, file.name);
+      prevResultRef.current = result;
       setConversionResult(result);
       
       // Start adaptive streaming animation
@@ -166,7 +173,8 @@ function App() {
 
   const downloadMarkdownBase64 = () => {
     if (!conversionResult || !sourceData) return;
-    const blob = new Blob([conversionResult.rawMarkdownWithBase64], { type: 'text/markdown;charset=utf-8' });
+    const base64Text = getBase64Markdown(conversionResult);
+    const blob = new Blob([base64Text], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -201,7 +209,8 @@ function App() {
 
   const copyToClipboard = () => {
     if (!conversionResult) return;
-    navigator.clipboard.writeText(conversionResult.rawMarkdownWithBase64).then(() => {
+    const textToCopy = getBase64Markdown(conversionResult);
+    navigator.clipboard.writeText(textToCopy).then(() => {
       alert('Copied to clipboard!');
     });
   };
@@ -212,6 +221,8 @@ function App() {
       cancelAnimationFrame(streamRafId.current);
       streamRafId.current = null;
     }
+    revokeConversionAssets(prevResultRef.current);
+    prevResultRef.current = null;
     setSourceData(null);
     setConversionResult(null);
     setError('');

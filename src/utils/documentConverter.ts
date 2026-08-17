@@ -6,21 +6,19 @@ export interface ProcessedAsset {
   mediaType: string;
   filename: string;
   data: Uint8Array;
-  base64Url: string;
   blobUrl?: string;
 }
 
 export interface ConversionResult {
-  markdown: string;
+  markdown: string; // Markdown with blobUrls for instant, lightweight DOM preview
   assets: ProcessedAsset[];
-  rawMarkdownWithBase64: string;
-  rawMarkdownWithRelativePaths: string;
+  rawMarkdownWithRelativePaths: string; // Clean markdown with ./images/ references
 }
 
 export function uint8ArrayToBase64(bytes: Uint8Array): string {
   let binary = '';
   const len = bytes.byteLength;
-  const chunkSize = 8192;
+  const chunkSize = 16384; // 16KB chunks for fast processing
   for (let i = 0; i < len; i += chunkSize) {
     const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
     binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
@@ -48,6 +46,43 @@ export function mimeToExt(mime: string): string {
   }
 }
 
+/**
+ * Revokes all Blob URLs associated with a conversion result to prevent memory leaks.
+ */
+export function revokeConversionAssets(result: ConversionResult | null | undefined) {
+  if (!result || !result.assets) return;
+  for (const asset of result.assets) {
+    if (asset.blobUrl) {
+      try {
+        URL.revokeObjectURL(asset.blobUrl);
+      } catch (e) {
+        // ignore
+      }
+      asset.blobUrl = undefined;
+    }
+  }
+}
+
+/**
+ * Generates the full Base64-embedded markdown string lazily on demand,
+ * so large Base64 strings are never held in memory during standard usage.
+ */
+export function getBase64Markdown(result: ConversionResult): string {
+  if (!result.assets || result.assets.length === 0) {
+    return result.rawMarkdownWithRelativePaths || result.markdown;
+  }
+
+  let text = result.rawMarkdownWithRelativePaths;
+  for (const asset of result.assets) {
+    const base64Data = uint8ArrayToBase64(asset.data);
+    const dataUri = `data:${asset.mediaType};base64,${base64Data}`;
+    const escapedFilename = asset.filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\(\\./${escapedFilename}\\)|\\(${escapedFilename}\\)`, 'g');
+    text = text.replace(regex, `(${dataUri})`);
+  }
+  return text;
+}
+
 export function processDocument(bytes: Uint8Array, format: Format | null): ConversionResult {
   let doc: Document | null = null;
   const processedAssets: ProcessedAsset[] = [];
@@ -61,22 +96,28 @@ export function processDocument(bytes: Uint8Array, format: Format | null): Conve
     }
   }
 
-  // Process assets if available
+  // Process assets if available (using memory-efficient Blob URLs)
   if (doc && doc.assets && doc.assets.length > 0) {
     doc.assets.forEach((asset, idx) => {
       const ext = mimeToExt(asset.mediaType);
       const filename = `images/image_${asset.id !== undefined ? asset.id : idx + 1}.${ext}`;
-      const base64 = uint8ArrayToBase64(asset.data);
-      const base64Url = `data:${asset.mediaType};base64,${base64}`;
-      const blob = new Blob([asset.data as unknown as BlobPart], { type: asset.mediaType });
-      const blobUrl = URL.createObjectURL(blob);
+      
+      let blobUrl: string | undefined = undefined;
+      // In browser environment, create Blob URL for zero-copy rendering
+      if (typeof URL !== 'undefined' && typeof Blob !== 'undefined') {
+        try {
+          const blob = new Blob([asset.data as unknown as BlobPart], { type: asset.mediaType });
+          blobUrl = URL.createObjectURL(blob);
+        } catch (e) {
+          // fallback in environments without blob
+        }
+      }
 
       processedAssets.push({
         id: asset.id !== undefined ? asset.id : idx,
         mediaType: asset.mediaType,
         filename,
         data: asset.data,
-        base64Url,
         blobUrl,
       });
     });
@@ -87,17 +128,22 @@ export function processDocument(bytes: Uint8Array, format: Format | null): Conve
     const assetMap = new Map<number, ProcessedAsset>();
     processedAssets.forEach(a => assetMap.set(a.id, a));
 
-    const markdownWithBase64 = renderBlocksToMarkdown(doc.blocks, id => assetMap.get(id)?.base64Url || '');
     const markdownWithRelative = renderBlocksToMarkdown(doc.blocks, id => {
       const a = assetMap.get(id);
       return a ? `./${a.filename}` : '';
     });
-    const markdownWithBlob = renderBlocksToMarkdown(doc.blocks, id => assetMap.get(id)?.blobUrl || assetMap.get(id)?.base64Url || '');
+    
+    const markdownWithBlob = renderBlocksToMarkdown(doc.blocks, id => {
+      const a = assetMap.get(id);
+      return a ? (a.blobUrl || `./${a.filename}`) : '';
+    });
+
+    // Dereference AST to allow GC
+    doc = null;
 
     return {
-      markdown: markdownWithBlob || markdownWithBase64,
+      markdown: markdownWithBlob,
       assets: processedAssets,
-      rawMarkdownWithBase64: markdownWithBase64,
       rawMarkdownWithRelativePaths: markdownWithRelative,
     };
   }
@@ -107,7 +153,6 @@ export function processDocument(bytes: Uint8Array, format: Format | null): Conve
   return {
     markdown: rawText,
     assets: processedAssets,
-    rawMarkdownWithBase64: rawText,
     rawMarkdownWithRelativePaths: rawText,
   };
 }

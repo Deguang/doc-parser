@@ -1,8 +1,8 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import init, { formatFromExtension } from '@firecrawl/anydoc-wasm';
 import MarkStream from 'markstream-react';
 import { DocumentPreview } from '../components/DocumentPreview';
-import { createZipExport, type ConversionResult } from '../utils/documentConverter';
+import { createZipExport, getBase64Markdown, revokeConversionAssets, type ConversionResult } from '../utils/documentConverter';
 import { parseDocumentInWorker } from '../utils/workerManager';
 
 export default function Elegant() {
@@ -14,15 +14,20 @@ export default function Elegant() {
   const [isDragging, setIsDragging] = useState(false);
   const [parseStats, setParseStats] = useState<{ timeMs: number, sizeBytes: number } | null>(null);
   const [leftTab, setLeftTab] = useState<'preview' | 'rendered'>('preview');
-  const [rawMarkdownMode, setRawMarkdownMode] = useState<'base64' | 'relative'>('base64');
+  const [rawMarkdownMode, setRawMarkdownMode] = useState<'base64' | 'relative'>('relative');
   const [isDownloading, setIsDownloading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const prevResultRef = useRef<ConversionResult | null>(null);
 
   useEffect(() => {
     init().then(() => setIsReady(true)).catch(err => {
       console.error(err);
       setError('Failed to initialize WASM parsing engine.');
     });
+
+    return () => {
+      revokeConversionAssets(prevResultRef.current);
+    };
   }, []);
 
   const handleFile = async (file: File) => {
@@ -31,11 +36,14 @@ export default function Elegant() {
     setError('');
     setParseStats(null);
     setSourceData(null);
+    
+    // Revoke previous assets from memory
+    revokeConversionAssets(prevResultRef.current);
     setConversionResult(null);
+    prevResultRef.current = null;
     
     try {
       const buffer = await file.arrayBuffer();
-      // Keep a copy for UI preview, pass slice to worker
       const bytesForWorker = new Uint8Array(buffer.slice(0));
       const bytesForPreview = new Uint8Array(buffer);
       setSourceData({ name: file.name, content: bytesForPreview });
@@ -46,6 +54,7 @@ export default function Elegant() {
       // Parse in background Web Worker off the main UI thread
       const { result, stats } = await parseDocumentInWorker(bytesForWorker, format, file.name);
       
+      prevResultRef.current = result;
       setConversionResult(result);
       setParseStats(stats);
     } catch (err: any) {
@@ -78,10 +87,17 @@ export default function Elegant() {
     }
   }, []);
 
+  // Compute Base64 only on-demand
+  const rawBase64Markdown = useMemo(() => {
+    if (!conversionResult || rawMarkdownMode !== 'base64') return '';
+    return getBase64Markdown(conversionResult);
+  }, [conversionResult, rawMarkdownMode]);
+
   const copyToClipboard = () => {
+    if (!conversionResult) return;
     const textToCopy = rawMarkdownMode === 'base64' 
-      ? conversionResult?.rawMarkdownWithBase64 
-      : conversionResult?.rawMarkdownWithRelativePaths;
+      ? (rawBase64Markdown || getBase64Markdown(conversionResult))
+      : conversionResult.rawMarkdownWithRelativePaths;
     if (!textToCopy) return;
     navigator.clipboard.writeText(textToCopy).then(() => {
       alert('Copied to clipboard!');
@@ -90,7 +106,8 @@ export default function Elegant() {
 
   const downloadMarkdownBase64 = () => {
     if (!conversionResult || !sourceData) return;
-    const blob = new Blob([conversionResult.rawMarkdownWithBase64], { type: 'text/markdown;charset=utf-8' });
+    const base64Text = getBase64Markdown(conversionResult);
+    const blob = new Blob([base64Text], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -124,6 +141,8 @@ export default function Elegant() {
   };
 
   const resetView = () => {
+    revokeConversionAssets(prevResultRef.current);
+    prevResultRef.current = null;
     setSourceData(null);
     setConversionResult(null);
     setError('');
@@ -290,7 +309,7 @@ export default function Elegant() {
                 </button>
               </div>
               <div className="p-8 overflow-y-auto font-code-md text-code-md bg-background/80 flex-grow relative text-on-surface-variant whitespace-pre-wrap">
-                {rawMarkdownMode === 'base64' ? conversionResult?.rawMarkdownWithBase64 : conversionResult?.rawMarkdownWithRelativePaths}
+                {rawMarkdownMode === 'base64' ? rawBase64Markdown : conversionResult?.rawMarkdownWithRelativePaths}
               </div>
             </div>
           </div>
