@@ -134,3 +134,20 @@ body {
 }
 .pane-header { padding: 16px 24px; background: rgba(19, 27, 46, 0.5); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--secondary); display: flex; justify-content: space-between; }
 .pane-content { padding: 24px; overflow-y: auto; flex: 1; background: rgba(255,255,255,0.02); font-family: 'JetBrains Mono', monospace; font-size: 14px; line-height: 1.7; }
+
+/* Beam Animation for Drop Zone */
+.scan-beam {
+  position: absolute; top: 0; left: 0; width: 100%; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  box-shadow: 0 0 10px var(--primary);
+  animation: scan 2s linear infinite; opacity: 0; transition: opacity 0.3s ease;
+}
+.drop-zone:hover .scan-beam { opacity: 1; }
+@keyframes scan { 0% { top: 0%; } 100% { top: 100%; } }
+
+/* Staggered Reveal */
+.reveal-item { opacity: 0; transform: translateY(30px); animation: revealUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.reveal-delay-1 { animation-delay: 0.1s; }
+.reveal-delay-2 { animation-delay: 0.2s; }
+.reveal-delay-3 { animation-delay: 0.3s; }
+@keyframes revealUp { to { opacity: 1; transform: translateY(0); } }

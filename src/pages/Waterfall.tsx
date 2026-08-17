@@ -1,21 +1,79 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import init, { toMarkdownBytes, formatFromExtension } from '@firecrawl/anydoc-wasm';
-import MarkStream from 'markstream-react';
 
 function App() {
   const [isReady, setIsReady] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [sourceData, setSourceData] = useState<{name: string, content: Uint8Array} | null>(null);
-  const [markdown, setMarkdown] = useState('');
   const [error, setError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  
+  const [streamingText, setStreamingText] = useState<{char: string, colorClass: string}[]>([]);
+  const [isStreaming, setIsStreaming] = useState(false);
+  
+  const outputRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     init().then(() => setIsReady(true)).catch(err => {
       console.error(err);
       setError('Failed to initialize WASM engine.');
     });
+
+    // Magnetic Button Effect
+    const handleMouseMove = (e: MouseEvent) => {
+      const btn = e.currentTarget as HTMLElement;
+      const rect = btn.getBoundingClientRect();
+      const x = e.clientX - rect.left - rect.width / 2;
+      const y = e.clientY - rect.top - rect.height / 2;
+      btn.style.transform = `translate(${x * 0.2}px, ${y * 0.2}px) scale(1.05)`;
+    };
+    
+    const handleMouseLeave = (e: MouseEvent) => {
+      const btn = e.currentTarget as HTMLElement;
+      btn.style.transform = '';
+    };
+
+    const btns = document.querySelectorAll('.magnetic-btn');
+    btns.forEach(btn => {
+      btn.addEventListener('mousemove', handleMouseMove as EventListener);
+      btn.addEventListener('mouseleave', handleMouseLeave as EventListener);
+    });
+
+    return () => {
+      btns.forEach(btn => {
+        btn.removeEventListener('mousemove', handleMouseMove as EventListener);
+        btn.removeEventListener('mouseleave', handleMouseLeave as EventListener);
+      });
+    };
   }, []);
+
+  const streamText = (text: string) => {
+    setIsStreaming(true);
+    setStreamingText([]);
+    let index = 0;
+    
+    const streamNext = () => {
+      if (index < text.length) {
+        let char = text.charAt(index);
+        let colorClass = 'text-on-surface';
+        if (char === '#' || char === '*' || char === '>') colorClass = 'text-tertiary font-bold';
+        
+        setStreamingText(prev => [...prev, { char, colorClass }]);
+        
+        if (outputRef.current) {
+          outputRef.current.scrollTop = outputRef.current.scrollHeight;
+        }
+        
+        index++;
+        setTimeout(streamNext, 5); // Fast streaming speed
+      } else {
+        setIsStreaming(false);
+        setIsProcessing(false);
+      }
+    };
+    
+    setTimeout(streamNext, 800);
+  };
 
   const handleFile = async (file: File) => {
     if (!file) return;
@@ -30,11 +88,12 @@ function App() {
       const ext = file.name.split('.').pop()?.toLowerCase() || 'txt';
       const format = formatFromExtension(ext) || null;
       const text = toMarkdownBytes(bytes, format);
-      setMarkdown(text);
+      
+      // Start streaming animation
+      streamText(text);
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Error parsing document.');
-    } finally {
       setIsProcessing(false);
     }
   };
@@ -59,80 +118,146 @@ function App() {
 
   const resetView = () => {
     setSourceData(null);
-    setMarkdown('');
     setError('');
+    setStreamingText([]);
+    setIsProcessing(false);
+    setIsStreaming(false);
   };
 
   return (
-    <>
+    <div className="antialiased min-h-screen flex flex-col relative w-full overflow-hidden">
       <div className="aurora-bg"></div>
       <div className="ambient-bg"></div>
-      <div className="app-container" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
-        <header className="nav-header glass-panel">
-          <div className="nav-title">LuminaConvert</div>
-          <button className="btn-primary-glow" disabled={!isReady}>
-            {isReady ? 'Engine Ready' : 'Initializing...'}
+      
+      {/* TopNavBar */}
+      <header className="bg-surface/50 backdrop-blur-xl border-b border-white/10 shadow-sm docked full-width top-0 sticky z-50">
+        <div className="flex justify-between items-center w-full px-4 md:px-margin-page py-4 max-w-container-max mx-auto">
+          <div className="flex items-center gap-2">
+            <span className="font-display-lg text-headline-md text-primary tracking-tighter cursor-pointer">LuminaConvert</span>
+          </div>
+          <nav className="hidden md:flex gap-8 items-center font-label-caps text-label-caps">
+            <a className="text-primary font-bold border-b-2 border-primary pb-1 transition-all duration-200 active:scale-95" href="#">How it works</a>
+            <a className="text-on-surface-variant font-medium hover:text-secondary transition-colors duration-300 transition-all duration-200 active:scale-95" href="#">Pricing</a>
+            <a className="text-on-surface-variant font-medium hover:text-secondary transition-colors duration-300 transition-all duration-200 active:scale-95" href="#">API</a>
+          </nav>
+          <button className="btn-primary-glow font-label-caps text-label-caps px-4 py-2 rounded-lg transition-all duration-200 active:scale-95 hidden md:block magnetic-btn" disabled={!isReady}>
+            {isReady ? 'Quick Start' : 'Initializing...'}
           </button>
-        </header>
+          <button className="md:hidden text-on-surface-variant hover:text-primary transition-colors">
+            <span className="material-symbols-outlined text-2xl">menu</span>
+          </button>
+        </div>
+      </header>
 
+      {/* Main Content */}
+      <main className="flex-grow flex flex-col items-center px-4 md:px-margin-page py-12 md:py-24 max-w-container-max mx-auto w-full gap-16 relative">
+        
         {!sourceData ? (
-          <main className="hero">
-            <h1 style={{fontSize: '48px', fontWeight: 'bold', margin: '48px 0 16px', textAlign: 'center'}}>
-              Transform Documents into Clean Markdown
-            </h1>
-            <p style={{color: 'var(--on-surface-variant)', fontSize: '18px', textAlign: 'center', maxWidth: '600px', margin: '0 auto 48px'}}>
-              Drag and drop your .docx, .pdf, or .txt files. Our local-first engine parses complex formatting into pristine, developer-ready markdown instantly.
-            </p>
-
-            <div className={`drop-zone glass-panel ${isDragging ? 'active' : 'glass-panel-hover'}`}>
-              <span className="material-symbols-outlined" style={{fontSize: '64px', marginBottom: '16px'}}>
-                {isProcessing ? 'autorenew' : 'upload_file'}
-              </span>
-              <div style={{fontSize: '24px', fontWeight: '600', marginBottom: '8px'}}>
-                {isProcessing ? 'Processing Document...' : 'Drop file here or click to browse'}
-              </div>
-              <div style={{fontSize: '12px', letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--outline)'}}>
-                Supports .DOCX, .PDF, .TXT
-              </div>
-              <input type="file" style={{opacity: 0, position: 'absolute', width: '100%', height: '100%', cursor: 'pointer'}} 
-                     onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
+          <section className="w-full flex flex-col items-center text-center gap-8 max-w-3xl z-10" id="upload-section">
+            <div className="space-y-4 reveal-item reveal-delay-1">
+              <h1 className="font-display-lg text-display-lg text-on-surface bg-clip-text text-transparent bg-gradient-to-r from-on-surface to-primary-fixed">
+                  Transform Documents into Clean Markdown
+              </h1>
+              <p className="font-body-rt text-body-rt text-on-surface-variant max-w-xl mx-auto">
+                  Drag and drop your .docx, .pdf, or .txt files. Our local-first engine parses complex formatting into pristine, developer-ready markdown instantly.
+              </p>
             </div>
-            {error && <div style={{color: 'var(--error)', marginTop: '16px'}}>{error}</div>}
-          </main>
-        ) : (
-          <section className="workspace">
-            <div className="pane glass-panel">
-              <div className="pane-header">
-                <span>{sourceData.name}</span>
-                <button onClick={resetView} style={{background: 'none', border: 'none', color: 'var(--on-surface-variant)', cursor: 'pointer'}}>
-                   <span className="material-symbols-outlined">close</span>
-                </button>
+            
+            <div 
+              className={`drop-zone relative w-full h-64 md:h-80 glass-panel ${isDragging ? 'border-primary' : 'glass-panel-hover border-outline-variant'} rounded-xl flex flex-col items-center justify-center border-dashed border-2 hover:border-primary transition-colors duration-300 cursor-pointer overflow-hidden group reveal-item reveal-delay-2`}
+              onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
+            >
+              <div className="scan-beam"></div>
+              <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-xl"></div>
+              <div className="z-10 flex flex-col items-center gap-4 text-on-surface-variant group-hover:text-primary transition-colors duration-300">
+                <span className={`material-symbols-outlined text-6xl font-light upload-icon ${isProcessing ? 'magic-pulse' : ''}`} style={{fontVariationSettings: "'FILL' 0"}}>
+                  {isProcessing ? 'autorenew' : 'upload_file'}
+                </span>
+                <div className="font-headline-md text-headline-md">{isProcessing ? 'Processing...' : 'Drop file here or click to browse'}</div>
+                <div className="font-label-caps text-label-caps text-outline group-hover:text-primary-fixed-dim transition-colors">Supports .DOCX, .PDF, .TXT</div>
               </div>
-              <div className="pane-content" style={{fontFamily: 'Inter', color: 'var(--on-surface)'}}>
-                {isProcessing && <div className="doc-scanner"></div>}
-                <div style={{padding: '16px'}}>Document loaded. Bytes: {sourceData.content.length}</div>
-                {/* Note: In a real app we might show a PDF viewer or text preview here */}
+              <input accept=".docx,.pdf,.txt" className="hidden" id="file-input" type="file" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
+              <div className="absolute inset-0 z-20" onClick={() => document.getElementById('file-input')?.click()}></div>
+            </div>
+            {error && <div className="text-error">{error}</div>}
+          </section>
+        ) : (
+          <section className="w-full flex-col gap-editor-gap z-10 transition-opacity duration-1000 opacity-100 flex" id="workspace-section">
+            <div className="flex items-center justify-between w-full mb-2">
+              <div className="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">description</span>
+                Document Parser
+              </div>
+              <div className="flex gap-4">
+                <button className="glass-panel text-on-surface-variant hover:text-primary px-4 py-2 rounded-lg font-label-caps text-label-caps flex items-center gap-2 transition-all duration-200 active:scale-95 magnetic-btn" onClick={resetView}>
+                  <span className="material-symbols-outlined text-sm">restart_alt</span> New Conversion
+                </button>
+                <button className="btn-primary-glow px-4 py-2 rounded-lg font-label-caps text-label-caps flex items-center gap-2 transition-all duration-200 active:scale-95 magnetic-btn">
+                  <span className="material-symbols-outlined text-sm">download</span> Download .md
+                </button>
               </div>
             </div>
             
-            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px'}}>
-              <span className={`material-symbols-outlined ${isProcessing ? 'magic-pulse' : ''}`} style={{color: 'var(--primary)', fontSize: '32px'}}>
-                magic_button
-              </span>
-            </div>
-
-            <div className="pane glass-panel">
-              <div className="pane-header">
-                <span style={{color: 'var(--secondary)'}}>Markdown Output</span>
+            <div className="flex flex-col md:flex-row w-full h-[600px] gap-8 relative">
+              {/* Source Pane */}
+              <div className="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden relative">
+                <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50 z-30">
+                  <span className="font-label-caps text-label-caps text-on-surface-variant">{sourceData.name}</span>
+                  <span className="material-symbols-outlined text-outline text-sm">visibility</span>
+                </div>
+                <div className="p-8 overflow-y-auto font-body-rt text-body-rt text-on-surface/80 bg-white/5 flex-grow relative" id="source-pane-content">
+                  {isProcessing && <div className="doc-scanner" id="doc-scanner"></div>}
+                  <div className="text-on-surface-variant opacity-50 break-words whitespace-pre-wrap font-code-md">
+                    [Binary Content: {sourceData.content.length} bytes]
+                  </div>
+                </div>
               </div>
-              <div className="pane-content streaming-text">
-                <MarkStream content={markdown} />
+              
+              {/* Transformation Indicator */}
+              <div className="hidden md:flex flex-col justify-center items-center px-2 z-20">
+                <div className="w-12 h-12 rounded-full glass-panel flex items-center justify-center border border-primary/30 relative">
+                  <div className={`absolute inset-0 rounded-full border border-secondary/50 opacity-20 ${isProcessing ? 'animate-ping' : ''}`}></div>
+                  <span className={`material-symbols-outlined ${(isProcessing || isStreaming) ? 'animate-spin text-primary' : 'text-secondary'}`} id="magic-icon">
+                    magic_button
+                  </span>
+                </div>
+              </div>
+              
+              {/* Output Pane */}
+              <div className="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden">
+                <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50">
+                  <span className="font-label-caps text-label-caps text-secondary">Markdown Output</span>
+                  <button className="text-outline hover:text-secondary transition-colors" title="Copy to clipboard">
+                    <span className="material-symbols-outlined text-sm">content_copy</span>
+                  </button>
+                </div>
+                <div className="p-8 overflow-y-auto font-code-md text-code-md bg-background/80 flex-grow relative streaming-text" id="markdown-output" ref={outputRef}>
+                  {(isProcessing && streamingText.length === 0) && (
+                    <span className="text-outline animate-pulse inline-block mb-4">Initializing Lumina-v2 Engine...</span>
+                  )}
+                  {streamingText.map((item, i) => (
+                    item.char === '\n' ? <br key={i} /> : <span key={i} className={item.colorClass}>{item.char}</span>
+                  ))}
+                </div>
               </div>
             </div>
           </section>
         )}
-      </div>
-    </>
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-surface-container-lowest border-t border-white/5 full-width py-2 mt-auto">
+        <div className="flex flex-row justify-between items-center px-4 md:px-margin-page py-8 w-full max-w-container-max mx-auto">
+          <div className="font-label-caps text-label-caps text-on-surface-variant">
+            © 2024 Lumina Systems. All transformations local-only.
+          </div>
+          <div className="flex gap-6 font-label-caps text-label-caps">
+            <a className="text-outline hover:text-primary transition-colors" href="#">Engine: Lumina-v2</a>
+            <a className="text-outline hover:text-primary transition-colors" href="#">Privacy: Local Only</a>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }
 
