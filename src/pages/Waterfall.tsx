@@ -268,33 +268,47 @@ function App() {
       <main className="flex-1 flex flex-col w-full h-full min-h-0 px-4 md:px-margin-page py-4 max-w-container-max mx-auto relative overflow-hidden">
         
         {!sourceData ? (
-          <section className="w-full flex-1 flex flex-col items-center justify-center text-center gap-8 max-w-3xl mx-auto z-10 overflow-y-auto py-8" id="upload-section">
-            <div className="space-y-4 reveal-item reveal-delay-1">
-              <h1 className="font-display-lg text-display-lg text-on-surface bg-clip-text text-transparent bg-gradient-to-r from-on-surface to-primary-fixed">
-                  Transform Documents into Clean Markdown
+          <section className="w-full flex-1 flex flex-col items-center justify-center text-center gap-6 max-w-2xl mx-auto z-10 overflow-y-auto py-6" id="upload-section">
+            <div className="space-y-3">
+              <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
+                Document to Clean Markdown
               </h1>
-              <p className="font-body-rt text-body-rt text-on-surface-variant max-w-xl mx-auto">
-                  Drag and drop your .docx, .pdf, or .txt files. Our local-first engine parses complex formatting into pristine, developer-ready markdown instantly.
+              <p className="text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
+                Local-first browser engine. Zero server uploads, instant parsing, and pristine Markdown formatting.
               </p>
             </div>
             
             <div 
-              className={`drop-zone relative w-full h-64 md:h-72 glass-panel ${isDragging ? 'border-primary' : 'glass-panel-hover border-outline-variant'} rounded-xl flex flex-col items-center justify-center border-dashed border-2 hover:border-primary transition-colors duration-300 cursor-pointer overflow-hidden group reveal-item reveal-delay-2`}
+              className={`drop-zone relative w-full h-64 md:h-72 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all ${
+                isDragging 
+                  ? 'border-blue-500 bg-blue-500/[0.06]' 
+                  : 'border-white/[0.12] hover:border-white/[0.24] bg-white/[0.02] hover:bg-white/[0.04]'
+              }`}
               onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
             >
-              <div className="scan-beam"></div>
-              <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-xl"></div>
-              <div className="z-10 flex flex-col items-center gap-4 text-on-surface-variant group-hover:text-primary transition-colors duration-300">
-                <span className={`material-symbols-outlined text-6xl font-light upload-icon ${isProcessing ? 'magic-pulse' : ''}`} style={{fontVariationSettings: "'FILL' 0"}}>
-                  {isProcessing ? 'autorenew' : 'upload_file'}
-                </span>
-                <div className="font-headline-md text-headline-md">{isProcessing ? 'Processing...' : 'Drop file here or click to browse'}</div>
-                <div className="font-label-caps text-label-caps text-outline group-hover:text-primary-fixed-dim transition-colors">Supports .DOCX, .PDF, .TXT</div>
+              <div className="z-10 flex flex-col items-center gap-4 text-slate-400 group-hover:text-slate-200 transition-colors">
+                <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-slate-300">
+                  <span className={`material-symbols-outlined text-3xl font-light ${isProcessing ? 'animate-spin text-blue-400' : ''}`}>
+                    {isProcessing ? 'autorenew' : 'upload_file'}
+                  </span>
+                </div>
+                <div className="text-center">
+                  <div className="text-sm font-semibold text-slate-200">
+                    {isProcessing ? 'Processing Document...' : 'Drop files here or click to browse'}
+                  </div>
+                  <div className="flex items-center justify-center gap-1.5 mt-2.5">
+                    {['DOCX', 'PDF', 'PPTX', 'TXT', 'XLSX'].map(type => (
+                      <span key={type} className="px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.06] text-[10px] font-mono text-slate-400">
+                        .{type}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <input accept=".docx,.pdf,.txt" className="hidden" id="file-input" type="file" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
+              <input accept=".docx,.pdf,.pptx,.txt,.xlsx" className="hidden" id="file-input" type="file" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
               <div className="absolute inset-0 z-20" onClick={() => document.getElementById('file-input')?.click()}></div>
             </div>
-            {error && <div className="text-error bg-error-container/20 px-4 py-2 rounded-lg border border-error/30">{error}</div>}
+            {error && <div className="text-xs text-rose-400 bg-rose-500/10 px-4 py-2.5 rounded-lg border border-rose-500/20">{error}</div>}
           </section>
         ) : (
           <section className="w-full flex-1 flex flex-col min-h-0 gap-3 z-10 transition-opacity duration-1000 opacity-100 overflow-hidden" id="workspace-section">

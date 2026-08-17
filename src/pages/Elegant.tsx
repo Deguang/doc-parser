@@ -189,49 +189,59 @@ export default function Elegant() {
       <main className="flex-1 flex flex-col w-full h-full min-h-0 px-4 md:px-margin-page py-4 max-w-container-max mx-auto relative overflow-hidden">
         
         {!sourceData ? (
-          <section className="w-full flex-1 flex flex-col items-center justify-center text-center gap-8 max-w-3xl mx-auto z-10 overflow-y-auto py-8" id="upload-section">
-            <div className="space-y-4">
-              <h1 className="font-display-lg text-display-lg text-on-surface bg-clip-text text-transparent bg-gradient-to-r from-on-surface to-primary-fixed">
-                Transform Documents into Clean Markdown
+          <section className="w-full flex-1 flex flex-col items-center justify-center text-center gap-6 max-w-2xl mx-auto z-10 overflow-y-auto py-6" id="upload-section">
+            <div className="space-y-3">
+              <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
+                Document to Clean Markdown
               </h1>
-              <p className="font-body-rt text-body-rt text-on-surface-variant max-w-xl mx-auto">
-                Drag and drop your .docx, .pdf, or .txt files. Our local-first engine parses complex formatting into pristine, developer-ready markdown instantly.
+              <p className="text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
+                Precision dual-pane comparison workspace. Parse complex documents to Markdown with 100% local privacy.
               </p>
             </div>
 
             <div 
-              className={`drop-zone relative w-full h-64 md:h-72 glass-panel rounded-xl flex flex-col items-center justify-center border-dashed border-2 transition-colors duration-300 cursor-pointer overflow-hidden group ${isDragging || isProcessing ? 'border-primary bg-primary/5' : 'border-outline-variant hover:border-primary'}`}
+              className={`drop-zone relative w-full h-64 md:h-72 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all ${
+                isDragging || isProcessing
+                  ? 'border-blue-500 bg-blue-500/[0.06]' 
+                  : 'border-white/[0.12] hover:border-white/[0.24] bg-white/[0.02] hover:bg-white/[0.04]'
+              }`}
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
               onDrop={onDrop}
               onClick={() => fileInputRef.current?.click()}
             >
               {isProcessing ? (
-                <div className="z-10 flex flex-col items-center gap-4 text-primary">
-                  <span className="material-symbols-outlined text-6xl animate-spin">autorenew</span>
-                  <div className="font-headline-md text-headline-md">Processing Document...</div>
+                <div className="z-10 flex flex-col items-center gap-3 text-blue-400">
+                  <span className="material-symbols-outlined text-4xl animate-spin">autorenew</span>
+                  <div className="text-sm font-semibold text-slate-200">Processing Document...</div>
                 </div>
               ) : (
-                <>
-                  <div className="scan-beam"></div>
-                  <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-xl"></div>
-                  <div className="z-10 flex flex-col items-center gap-4 text-on-surface-variant group-hover:text-primary transition-colors duration-300">
-                    <span className="material-symbols-outlined text-6xl font-light">upload_file</span>
-                    <div className="font-headline-md text-headline-md">Drop file here or click to browse</div>
-                    <div className="font-label-caps text-label-caps text-outline group-hover:text-primary-fixed-dim transition-colors">Supports .DOCX, .PDF, .PPTX, .TXT</div>
+                <div className="z-10 flex flex-col items-center gap-4 text-slate-400 group-hover:text-slate-200 transition-colors">
+                  <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-slate-300">
+                    <span className="material-symbols-outlined text-3xl font-light">upload_file</span>
                   </div>
-                </>
+                  <div className="text-center">
+                    <div className="text-sm font-semibold text-slate-200">Drop file here or click to browse</div>
+                    <div className="flex items-center justify-center gap-1.5 mt-2.5">
+                      {['DOCX', 'PDF', 'PPTX', 'TXT', 'XLSX'].map(type => (
+                        <span key={type} className="px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.06] text-[10px] font-mono text-slate-400">
+                          .{type}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               )}
               <input 
-                accept=".docx,.pdf,.pptx,.txt" 
+                accept=".docx,.pdf,.pptx,.txt,.xlsx" 
                 className="hidden" 
                 type="file" 
                 ref={fileInputRef}
                 onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}
               />
             </div>
-            {error && <div className="text-error font-body-rt bg-error-container/20 px-4 py-2 rounded-md border border-error/50">{error}</div>}
-            {!isReady && <div className="text-secondary animate-pulse">Initializing WASM Parsing Engine...</div>}
+            {error && <div className="text-xs text-rose-400 bg-rose-500/10 px-4 py-2.5 rounded-lg border border-rose-500/20">{error}</div>}
+            {!isReady && <div className="text-xs text-slate-400 animate-pulse">Initializing WASM Engine...</div>}
           </section>
         ) : (
           <section className="w-full flex-1 flex flex-col min-h-0 gap-3 z-10 overflow-hidden" id="workspace-section">
