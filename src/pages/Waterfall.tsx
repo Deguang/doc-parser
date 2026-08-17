@@ -81,21 +81,27 @@ function App() {
         const nextIndex = Math.min(index + stepSize, text.length);
         setStreamedContent(text.slice(0, nextIndex));
         
-        if (outputRef.current) {
-          outputRef.current.scrollTop = outputRef.current.scrollHeight;
-        }
-        
         index = nextIndex;
         streamRafId.current = requestAnimationFrame(streamNext);
       } else {
         setIsStreaming(false);
         setIsProcessing(false);
         streamRafId.current = null;
+        if (outputRef.current) {
+          outputRef.current.scrollTop = 0;
+        }
       }
     };
     
     streamRafId.current = requestAnimationFrame(streamNext);
   };
+
+  // Reset scroll to top whenever mode changes or new document is loaded
+  useEffect(() => {
+    if (outputRef.current) {
+      outputRef.current.scrollTop = 0;
+    }
+  }, [outputMode, conversionResult]);
 
   const skipStreaming = () => {
     isCancelledRef.current = true;
@@ -107,6 +113,9 @@ function App() {
     setIsStreaming(false);
     setIsProcessing(false);
     setOutputMode('preview'); // Instant switch to rich rendered preview
+    if (outputRef.current) {
+      outputRef.current.scrollTop = 0;
+    }
   };
 
   const handleFile = async (file: File) => {
