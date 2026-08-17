@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { formatFromExtension } from '@firecrawl/anydoc-wasm';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
+import { VirtualCodeViewer } from '../components/VirtualCodeViewer';
 import { DocumentPreview } from '../components/DocumentPreview';
 import { WasmProgressBar } from '../components/WasmProgressBar';
 import { createZipExport, getBase64Markdown, revokeConversionAssets, type ConversionResult } from '../utils/documentConverter';
@@ -458,16 +459,14 @@ function App() {
                       />
                     </div>
                   ) : (
-                    <div className="font-code-md text-code-md text-on-surface-variant">
+                    <div className="w-full">
                       {(isProcessing && !streamedContent) && (
-                        <span className="text-outline animate-pulse inline-block mb-4">Initializing Lumina-v2 Engine...</span>
+                        <span className="text-slate-400 text-xs animate-pulse inline-block mb-4">Parsing document with WASM Core...</span>
                       )}
-                      <pre className="whitespace-pre-wrap font-mono select-text font-code-md leading-relaxed">
-                        {streamedContent}
-                        {isStreaming && (
-                          <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-0.5 align-middle shadow-[0_0_8px_var(--primary)] rounded-xs" />
-                        )}
-                      </pre>
+                      <VirtualCodeViewer 
+                        content={streamedContent} 
+                        isStreaming={isStreaming} 
+                      />
                     </div>
                   )}
                 </div>

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { formatFromExtension } from '@firecrawl/anydoc-wasm';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
+import { VirtualCodeViewer } from '../components/VirtualCodeViewer';
 import { DocumentPreview } from '../components/DocumentPreview';
 import { WasmProgressBar } from '../components/WasmProgressBar';
 import { createZipExport, getBase64Markdown, revokeConversionAssets, type ConversionResult } from '../utils/documentConverter';
@@ -372,9 +373,11 @@ export default function Elegant() {
                 <div 
                   ref={rightOutputRef}
                   onScroll={handleOutputScroll}
-                  className="p-6 overflow-y-auto font-code-md text-code-md bg-background/80 flex-grow relative text-on-surface-variant whitespace-pre-wrap"
+                  className="p-6 overflow-y-auto bg-background/80 flex-grow relative"
                 >
-                  {rawMarkdownMode === 'base64' ? rawBase64Markdown : conversionResult?.rawMarkdownWithRelativePaths}
+                  <VirtualCodeViewer 
+                    content={rawMarkdownMode === 'base64' ? rawBase64Markdown : (conversionResult?.rawMarkdownWithRelativePaths || '')} 
+                  />
                 </div>
               </div>
             </div>
