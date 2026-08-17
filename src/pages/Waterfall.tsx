@@ -13,7 +13,7 @@ function App() {
   const [error, setError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [outputMode, setOutputMode] = useState<'stream' | 'preview'>('preview');
+  const [outputMode, setOutputMode] = useState<'stream' | 'preview'>('stream');
   
   const [streamedContent, setStreamedContent] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -68,7 +68,7 @@ function App() {
       streamRafId.current = null;
     }
     isCancelledRef.current = false;
-    setOutputMode('stream'); // Show live waterfall stream
+    setOutputMode('stream'); // Default to live waterfall stream
     setIsStreaming(true);
     setStreamedContent('');
     fullTextRef.current = text;
@@ -95,13 +95,6 @@ function App() {
         setIsStreaming(false);
         setIsProcessing(false);
         streamRafId.current = null;
-        // On completion: switch to full rendered view and return to top
-        setTimeout(() => {
-          setOutputMode('preview');
-          if (outputRef.current) {
-            outputRef.current.scrollTop = 0;
-          }
-        }, 200);
       }
     };
     
@@ -117,8 +110,7 @@ function App() {
     setStreamedContent(fullTextRef.current);
     setIsStreaming(false);
     setIsProcessing(false);
-    setOutputMode('preview'); // Render full formatted markdown instantly
-    // Return to top
+    // Keep in Waterfall stream view and return to top
     setTimeout(() => {
       if (outputRef.current) {
         outputRef.current.scrollTop = 0;
