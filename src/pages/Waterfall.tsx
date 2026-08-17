@@ -68,13 +68,14 @@ function App() {
       streamRafId.current = null;
     }
     isCancelledRef.current = false;
+    setOutputMode('stream'); // Show live waterfall stream
     setIsStreaming(true);
     setStreamedContent('');
     fullTextRef.current = text;
 
     let index = 0;
-    // Adapt step size to complete fluidly in 0.5s - 0.8s
-    const stepSize = Math.max(20, Math.min(200, Math.floor(text.length / 35)));
+    // Step size for smooth visual flow (~1.2s - 1.8s total typing waterfall)
+    const stepSize = Math.max(12, Math.min(100, Math.floor(text.length / 50)));
     
     const streamNext = () => {
       if (isCancelledRef.current) return;
@@ -83,27 +84,29 @@ function App() {
         const nextIndex = Math.min(index + stepSize, text.length);
         setStreamedContent(text.slice(0, nextIndex));
         
+        // Auto-follow: scroll down to follow the active rendering line
+        if (outputRef.current) {
+          outputRef.current.scrollTop = outputRef.current.scrollHeight;
+        }
+        
         index = nextIndex;
         streamRafId.current = requestAnimationFrame(streamNext);
       } else {
         setIsStreaming(false);
         setIsProcessing(false);
         streamRafId.current = null;
-        if (outputRef.current) {
-          outputRef.current.scrollTop = 0;
-        }
+        // On completion: switch to full rendered view and return to top
+        setTimeout(() => {
+          setOutputMode('preview');
+          if (outputRef.current) {
+            outputRef.current.scrollTop = 0;
+          }
+        }, 200);
       }
     };
     
     streamRafId.current = requestAnimationFrame(streamNext);
   };
-
-  // Reset scroll to top whenever mode changes or new document is loaded
-  useEffect(() => {
-    if (outputRef.current) {
-      outputRef.current.scrollTop = 0;
-    }
-  }, [outputMode, conversionResult]);
 
   const skipStreaming = () => {
     isCancelledRef.current = true;
@@ -114,10 +117,13 @@ function App() {
     setStreamedContent(fullTextRef.current);
     setIsStreaming(false);
     setIsProcessing(false);
-    setOutputMode('preview'); // Instant switch to rich rendered preview
-    if (outputRef.current) {
-      outputRef.current.scrollTop = 0;
-    }
+    setOutputMode('preview'); // Render full formatted markdown instantly
+    // Return to top
+    setTimeout(() => {
+      if (outputRef.current) {
+        outputRef.current.scrollTop = 0;
+      }
+    }, 0);
   };
 
   const handleFile = async (file: File) => {
@@ -413,8 +419,11 @@ function App() {
                       {(isProcessing && !streamedContent) && (
                         <span className="text-outline animate-pulse inline-block mb-4">Initializing Lumina-v2 Engine...</span>
                       )}
-                      <pre className="whitespace-pre-wrap font-mono select-text font-code-md">
+                      <pre className="whitespace-pre-wrap font-mono select-text font-code-md leading-relaxed">
                         {streamedContent}
+                        {isStreaming && (
+                          <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-0.5 align-middle shadow-[0_0_8px_var(--primary)] rounded-xs" />
+                        )}
                       </pre>
                     </div>
                   )}
