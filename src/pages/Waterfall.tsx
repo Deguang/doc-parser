@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import init, { toMarkdownBytes, formatFromExtension } from '@firecrawl/anydoc-wasm';
+import { DocumentPreview } from '../components/DocumentPreview';
 
 function App() {
   const [isReady, setIsReady] = useState(false);
@@ -202,14 +203,15 @@ function App() {
               {/* Source Pane */}
               <div className="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden relative">
                 <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50 z-30">
-                  <span className="font-label-caps text-label-caps text-on-surface-variant">{sourceData.name}</span>
+                  <span className="font-label-caps text-label-caps text-on-surface-variant flex items-center gap-2">
+                    <span className="material-symbols-outlined text-sm text-secondary">file_present</span>
+                    {sourceData.name}
+                  </span>
                   <span className="material-symbols-outlined text-outline text-sm">visibility</span>
                 </div>
-                <div className="p-8 overflow-y-auto font-body-rt text-body-rt text-on-surface/80 bg-white/5 flex-grow relative" id="source-pane-content">
+                <div className="overflow-hidden flex-grow relative flex flex-col bg-white/5" id="source-pane-content">
                   {isProcessing && <div className="doc-scanner" id="doc-scanner"></div>}
-                  <div className="text-on-surface-variant opacity-50 break-words whitespace-pre-wrap font-code-md">
-                    [Binary Content: {sourceData.content.length} bytes]
-                  </div>
+                  <DocumentPreview name={sourceData.name} content={sourceData.content} className="flex-grow" />
                 </div>
               </div>
               

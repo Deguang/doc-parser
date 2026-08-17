@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import init, { toMarkdownBytes, formatFromExtension } from '@firecrawl/anydoc-wasm';
 import MarkStream from 'markstream-react';
+import { DocumentPreview } from '../components/DocumentPreview';
 
 export default function Elegant() {
   const [isReady, setIsReady] = useState(false);
@@ -10,6 +11,7 @@ export default function Elegant() {
   const [error, setError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [parseStats, setParseStats] = useState<{ timeMs: number, sizeBytes: number } | null>(null);
+  const [leftTab, setLeftTab] = useState<'preview' | 'rendered'>('preview');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -173,18 +175,43 @@ export default function Elegant() {
           
           <div className="flex flex-col md:flex-row w-full h-[600px] gap-editor-gap">
             <div className="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden">
-              <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50">
-                <span className="font-label-caps text-label-caps text-on-surface-variant">{sourceData.name}</span>
+              <div className="px-4 py-3 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50 gap-2">
+                <div className="flex items-center gap-1 bg-black/20 p-1 rounded-lg border border-white/5">
+                  <button
+                    onClick={() => setLeftTab('preview')}
+                    className={`px-3 py-1 rounded text-xs font-label-caps transition-all ${
+                      leftTab === 'preview'
+                        ? 'bg-primary/20 text-primary border border-primary/30 shadow-sm font-semibold'
+                        : 'text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    Original Source
+                  </button>
+                  <button
+                    onClick={() => setLeftTab('rendered')}
+                    className={`px-3 py-1 rounded text-xs font-label-caps transition-all ${
+                      leftTab === 'rendered'
+                        ? 'bg-secondary/20 text-secondary border border-secondary/30 shadow-sm font-semibold'
+                        : 'text-on-surface-variant hover:text-on-surface'
+                    }`}
+                  >
+                    Rendered Markdown
+                  </button>
+                </div>
                 {parseStats && (
                   <span className="text-secondary font-label-caps text-xs">
                     Parsed {(parseStats.sizeBytes / 1024).toFixed(1)} KB in {parseStats.timeMs}ms
                   </span>
                 )}
               </div>
-              <div className="p-8 overflow-y-auto font-body-rt text-body-rt text-on-surface/80 bg-white/5 flex-grow">
-                 <div className="streaming-text">
+              <div className="overflow-hidden flex-grow relative flex flex-col bg-white/5">
+                {leftTab === 'preview' ? (
+                  <DocumentPreview name={sourceData.name} content={sourceData.content} className="flex-grow" />
+                ) : (
+                  <div className="p-8 overflow-y-auto font-body-rt text-body-rt text-on-surface/80 flex-grow streaming-text">
                     <MarkStream content={markdown} />
-                 </div>
+                  </div>
+                )}
               </div>
             </div>
 
