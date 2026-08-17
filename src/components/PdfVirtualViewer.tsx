@@ -105,8 +105,12 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
     };
   }, []);
 
+  const intendedVisibility = useRef<Map<number, boolean>>(new Map());
+
   const renderPage = useCallback(async (pageNum: number) => {
     if (!pdfDoc) return;
+    intendedVisibility.current.set(pageNum, true);
+    
     const canvas = canvasRefs.current.get(pageNum);
     if (!canvas) return;
 
@@ -121,6 +125,13 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
     try {
       const page = await pdfDoc.getPage(pageNum);
       pageProxies.current.set(pageNum, page);
+      
+      // Check if the user scrolled past this page while we were fetching it
+      if (intendedVisibility.current.get(pageNum) === false) {
+        try { page.cleanup(); } catch (e) {}
+        return; // Abort rendering
+      }
+
       const dpr = window.devicePixelRatio || 1;
       const viewport = page.getViewport({ scale: zoom * dpr });
       
@@ -146,6 +157,14 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
       await renderTask.promise;
       renderTasks.current.delete(pageNum);
       
+      // Final check in case it became invisible during rendering
+      if (intendedVisibility.current.get(pageNum) === false) {
+        canvas.width = 0;
+        canvas.height = 0;
+        try { page.cleanup(); } catch (e) {}
+        return;
+      }
+      
       setVisiblePages(prev => {
         const next = new Set(prev);
         next.add(pageNum);
@@ -160,6 +179,8 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
   }, [pdfDoc, zoom]);
 
   const clearPage = useCallback((pageNum: number) => {
+    intendedVisibility.current.set(pageNum, false);
+    
     if (renderTasks.current.has(pageNum)) {
       try {
         renderTasks.current.get(pageNum).cancel();
@@ -175,6 +196,7 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
     const page = pageProxies.current.get(pageNum);
     if (page) {
       try { page.cleanup(); } catch (e) {}
+      pageProxies.current.delete(pageNum);
     }
     setVisiblePages(prev => {
       const next = new Set(prev);
@@ -201,7 +223,7 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
       });
     }, {
       root: containerRef.current,
-      rootMargin: '200% 0px', // 2 viewport heights of buffer above and below
+      rootMargin: '150% 0px', // Reduced buffer to save memory
       threshold: 0
     });
 
@@ -236,37 +258,42 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
       style={{ willChange: 'transform' }}
     >
       <div className="flex flex-col items-center py-4 space-y-[12px]">
-        {Array.from({ length: numPages }, (_, i) => i + 1).map(pageNum => (
-          <div 
-            key={pageNum}
-            ref={el => {
-              if (el) {
-                pageRefs.current.set(pageNum, el);
-                observerRef.current?.observe(el);
-              } else {
-                const oldEl = pageRefs.current.get(pageNum);
-                if (oldEl) observerRef.current?.unobserve(oldEl);
-                pageRefs.current.delete(pageNum);
-              }
-            }}
-            data-page-number={pageNum}
-            className="relative shadow-md bg-white rounded-sm flex items-center justify-center"
-            style={{ width: pageWidth || 300, height: pageHeight || 400 }}
-          >
-            <canvas 
+        {Array.from({ length: numPages }, (_, i) => i + 1).map(pageNum => {
+          const isVisible = visiblePages.has(pageNum);
+          return (
+            <div 
+              key={pageNum}
               ref={el => {
-                if (el) canvasRefs.current.set(pageNum, el);
-                else canvasRefs.current.delete(pageNum);
+                if (el) {
+                  pageRefs.current.set(pageNum, el);
+                  observerRef.current?.observe(el);
+                } else {
+                  const oldEl = pageRefs.current.get(pageNum);
+                  if (oldEl) observerRef.current?.unobserve(oldEl);
+                  pageRefs.current.delete(pageNum);
+                }
               }}
-              className="block"
-            />
-            {visiblePages.has(pageNum) && (
-              <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-white/80 px-1.5 py-0.5 rounded shadow-sm">
-                {pageNum}
-              </div>
-            )}
-          </div>
-        ))}
+              data-page-number={pageNum}
+              className="relative shadow-md bg-white rounded-sm flex items-center justify-center"
+              style={{ width: pageWidth || 300, height: pageHeight || 400 }}
+            >
+              {isVisible && (
+                <canvas 
+                  ref={el => {
+                    if (el) canvasRefs.current.set(pageNum, el);
+                    else canvasRefs.current.delete(pageNum);
+                  }}
+                  className="block"
+                />
+              )}
+              {isVisible && (
+                <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-white/80 px-1.5 py-0.5 rounded shadow-sm">
+                  {pageNum}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-surface-container-high/90 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 shadow-lg z-20">
