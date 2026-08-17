@@ -244,23 +244,28 @@ function App() {
   const leftScrollRef = useRef<HTMLDivElement | null>(null);
   const isSyncingRef = useRef<boolean>(false);
 
-  // High-performance direct DOM scroll sync without React re-renders
+  // High-performance direct DOM scroll sync without React re-renders and infinite loops
   useEffect(() => {
     if (!isSyncScroll) return;
 
     const leftEl = leftScrollRef.current;
     const rightEl = outputRef.current;
+    let syncTimeoutId: number | null = null;
 
     const handleLeftScroll = () => {
       if (isSyncingRef.current || !rightEl || !leftEl) return;
       const leftMax = leftEl.scrollHeight - leftEl.clientHeight;
       const rightMax = rightEl.scrollHeight - rightEl.clientHeight;
       if (leftMax > 0 && rightMax > 0) {
-        isSyncingRef.current = true;
-        rightEl.scrollTop = (leftEl.scrollTop / leftMax) * rightMax;
-        requestAnimationFrame(() => {
-          isSyncingRef.current = false;
-        });
+        const targetScroll = (leftEl.scrollTop / leftMax) * rightMax;
+        if (Math.abs(rightEl.scrollTop - targetScroll) > 2) {
+          isSyncingRef.current = true;
+          rightEl.scrollTop = targetScroll;
+          if (syncTimeoutId) clearTimeout(syncTimeoutId);
+          syncTimeoutId = window.setTimeout(() => {
+            isSyncingRef.current = false;
+          }, 50);
+        }
       }
     };
 
@@ -269,11 +274,15 @@ function App() {
       const leftMax = leftEl.scrollHeight - leftEl.clientHeight;
       const rightMax = rightEl.scrollHeight - rightEl.clientHeight;
       if (leftMax > 0 && rightMax > 0) {
-        isSyncingRef.current = true;
-        leftEl.scrollTop = (rightEl.scrollTop / rightMax) * leftMax;
-        requestAnimationFrame(() => {
-          isSyncingRef.current = false;
-        });
+        const targetScroll = (rightEl.scrollTop / rightMax) * leftMax;
+        if (Math.abs(leftEl.scrollTop - targetScroll) > 2) {
+          isSyncingRef.current = true;
+          leftEl.scrollTop = targetScroll;
+          if (syncTimeoutId) clearTimeout(syncTimeoutId);
+          syncTimeoutId = window.setTimeout(() => {
+            isSyncingRef.current = false;
+          }, 50);
+        }
       }
     };
 
@@ -283,6 +292,7 @@ function App() {
     return () => {
       leftEl?.removeEventListener('scroll', handleLeftScroll);
       rightEl?.removeEventListener('scroll', handleRightScroll);
+      if (syncTimeoutId) clearTimeout(syncTimeoutId);
     };
   }, [isSyncScroll, sourceData, outputMode]);
 
