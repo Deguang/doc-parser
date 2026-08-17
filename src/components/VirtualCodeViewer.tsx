@@ -48,6 +48,8 @@ export const VirtualCodeViewer: React.FC<VirtualCodeViewerProps> = ({
     setVisibleChunkCount(totalChunks);
   };
 
+  const totalLines = useMemo(() => (content ? content.split('\n').length : 0), [content]);
+
   if (!content) {
     return null;
   }
@@ -65,7 +67,6 @@ export const VirtualCodeViewer: React.FC<VirtualCodeViewerProps> = ({
   }
 
   const visibleChunks = chunks.slice(0, visibleChunkCount);
-  const totalLines = useMemo(() => (content ? content.split('\n').length : 0), [content]);
   const renderedLines = Math.min(visibleChunkCount * LINES_PER_CHUNK, totalLines);
 
   return (

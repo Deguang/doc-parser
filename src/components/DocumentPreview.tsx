@@ -21,10 +21,16 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState<number>(85);
+  const [isPdfEmbeddedLoaded, setIsPdfEmbeddedLoaded] = useState<boolean>(false);
 
   const docxContainerRef = useRef<HTMLDivElement>(null);
   const internalScrollRef = useRef<HTMLDivElement>(null);
   const ext = name.split('.').pop()?.toLowerCase() || '';
+
+  // Reset PDF load state on file change
+  useEffect(() => {
+    setIsPdfEmbeddedLoaded(false);
+  }, [name]);
 
   const setScrollContainer = (el: HTMLDivElement | null) => {
     internalScrollRef.current = el;
@@ -226,13 +232,6 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       </div>
     );
   }
-
-  const [isPdfEmbeddedLoaded, setIsPdfEmbeddedLoaded] = useState<boolean>(false);
-
-  // Reset PDF load state on file change
-  useEffect(() => {
-    setIsPdfEmbeddedLoaded(false);
-  }, [name]);
 
   // PDF Preview
   if (ext === 'pdf') {
