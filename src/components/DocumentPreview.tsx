@@ -130,16 +130,19 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content,
     </div>
   );
 
+  if (loading) {
+    return (
+      <div className={`w-full h-full relative flex flex-col items-center justify-center bg-surface-container-low/60 backdrop-blur-sm ${className}`}>
+        <span className="material-symbols-outlined text-3xl text-primary animate-spin">progress_activity</span>
+        <span className="mt-2 font-label-caps text-xs text-on-surface-variant">Loading Document Preview...</span>
+      </div>
+    );
+  }
+
   // DOCX Render container
   if (ext === 'docx') {
     return (
       <div className={`w-full h-full relative overflow-hidden bg-slate-900/30 flex flex-col ${className}`}>
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-surface-container-low/80 backdrop-blur-sm z-10">
-            <span className="material-symbols-outlined text-3xl text-primary animate-spin">progress_activity</span>
-            <span className="ml-2 font-label-caps text-xs text-on-surface-variant">Rendering Word Layout...</span>
-          </div>
-        )}
         {error && (
           <div className="p-4 text-xs text-error bg-error-container/20 rounded border border-error/30 m-4">
             {error}
@@ -166,16 +169,18 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content,
   }
 
   // PDF Preview
-  if (ext === 'pdf' && objectUrl) {
-    return (
-      <div className={`w-full h-full relative bg-surface-container-low ${className}`}>
-        <iframe
-          src={`${objectUrl}#toolbar=0&navpanes=0&view=FitH`}
-          className="w-full h-full border-none rounded-lg"
-          title={`PDF Preview: ${name}`}
-        />
-      </div>
-    );
+  if (ext === 'pdf') {
+    if (objectUrl) {
+      return (
+        <div className={`w-full h-full relative bg-surface-container-low ${className}`}>
+          <iframe
+            src={`${objectUrl}#toolbar=0&navpanes=0&view=FitH`}
+            className="w-full h-full border-none rounded-lg"
+            title={`PDF Preview: ${name}`}
+          />
+        </div>
+      );
+    }
   }
 
   // Image Preview

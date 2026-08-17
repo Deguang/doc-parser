@@ -87,8 +87,11 @@ export function processDocument(bytes: Uint8Array, format: Format | null): Conve
   let doc: Document | null = null;
   const processedAssets: ProcessedAsset[] = [];
 
+  // Check magic bytes for PDF (%PDF) or format === 'pdf'
+  const isPdf = format === 'pdf' || (bytes.length >= 4 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46);
+
   // PDF only supports toMarkdownBytes in anydoc
-  if (format !== 'pdf') {
+  if (!isPdf) {
     try {
       doc = toDocument(bytes, format);
     } catch (e) {
@@ -148,8 +151,9 @@ export function processDocument(bytes: Uint8Array, format: Format | null): Conve
     };
   }
 
-  // Fallback to toMarkdownBytes
-  const rawText = toMarkdownBytes(bytes, format);
+  // Direct conversion for PDF and non-AST documents
+  const targetFormat = isPdf ? 'pdf' : format;
+  const rawText = toMarkdownBytes(bytes, targetFormat);
   return {
     markdown: rawText,
     assets: processedAssets,

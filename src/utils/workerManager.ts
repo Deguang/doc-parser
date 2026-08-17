@@ -1,4 +1,5 @@
 import init, { type Format } from '@firecrawl/anydoc-wasm';
+import wasmUrl from '@firecrawl/anydoc-wasm/anydoc_wasm_bg.wasm?url';
 import { processDocument, type ConversionResult } from './documentConverter';
 import { type WorkerParseRequest, type WorkerParseResponse } from '../workers/parser.worker';
 
@@ -17,7 +18,7 @@ const pendingRequests = new Map<
 
 async function ensureMainThreadWasm() {
   if (!isMainThreadWasmInitialized) {
-    await init();
+    await init(wasmUrl);
     isMainThreadWasmInitialized = true;
   }
 }

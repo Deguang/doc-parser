@@ -1,11 +1,12 @@
 import init, { type Format } from '@firecrawl/anydoc-wasm';
+import wasmUrl from '@firecrawl/anydoc-wasm/anydoc_wasm_bg.wasm?url';
 import { processDocument, type ConversionResult } from '../utils/documentConverter';
 
 let isWasmInitialized = false;
 
 async function ensureInit() {
   if (!isWasmInitialized) {
-    await init();
+    await init(wasmUrl);
     isWasmInitialized = true;
   }
 }
