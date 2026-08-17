@@ -21,7 +21,6 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
   const [numPages, setNumPages] = useState<number>(0);
   const [baseDimensions, setBaseDimensions] = useState<PageDimensions>({ width: 0, height: 0 });
   const [zoom, setZoom] = useState<number>(0.85);
-  const [visiblePages, setVisiblePages] = useState<Set<number>>(new Set());
 
   const containerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -153,12 +152,6 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
         try { page.cleanup(); } catch (e) {}
         return;
       }
-      
-      setVisiblePages(prev => {
-        const next = new Set(prev);
-        next.add(pageNum);
-        return next;
-      });
 
     } catch (err: any) {
       if (err.name !== 'RenderingCancelledException') {
@@ -187,11 +180,6 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
       try { page.cleanup(); } catch (e) {}
       pageProxies.current.delete(pageNum);
     }
-    setVisiblePages(prev => {
-      const next = new Set(prev);
-      next.delete(pageNum);
-      return next;
-    });
   }, []);
 
   // Set up IntersectionObserver
@@ -227,8 +215,8 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
   // Handle zoom changes for already visible pages
   useEffect(() => {
     if (pdfDoc) {
-      Array.from(visiblePages).forEach(pageNum => {
-        renderPage(pageNum);
+      Array.from(intendedVisibility.current.entries()).forEach(([pageNum, isVisible]) => {
+        if (isVisible) renderPage(pageNum);
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -248,7 +236,6 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
     >
       <div className="flex flex-col items-center py-4 space-y-[12px]">
         {Array.from({ length: numPages }, (_, i) => i + 1).map(pageNum => {
-          const isVisible = visiblePages.has(pageNum);
           return (
             <div 
               key={pageNum}
@@ -266,20 +253,16 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
               className="relative shadow-md bg-white rounded-sm flex items-center justify-center"
               style={{ width: pageWidth || 300, height: pageHeight || 400 }}
             >
-              {isVisible && (
-                <canvas 
-                  ref={el => {
-                    if (el) canvasRefs.current.set(pageNum, el);
-                    else canvasRefs.current.delete(pageNum);
-                  }}
-                  className="block"
-                />
-              )}
-              {isVisible && (
-                <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-white/80 px-1.5 py-0.5 rounded shadow-sm">
-                  {pageNum}
-                </div>
-              )}
+              <canvas 
+                ref={el => {
+                  if (el) canvasRefs.current.set(pageNum, el);
+                  else canvasRefs.current.delete(pageNum);
+                }}
+                className="block"
+              />
+              <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-white/80 px-1.5 py-0.5 rounded shadow-sm">
+                {pageNum}
+              </div>
             </div>
           );
         })}
