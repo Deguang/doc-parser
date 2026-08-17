@@ -9,7 +9,7 @@ import { parseDocumentInWorker } from '../utils/workerManager';
 
 export default function Elegant() {
   const [isProcessing, setIsProcessing] = useState(false);
-  const [sourceData, setSourceData] = useState<{name: string, content: Uint8Array} | null>(null);
+  const [sourceData, setSourceData] = useState<{name: string, file?: File, content?: Uint8Array} | null>(null);
   const [conversionResult, setConversionResult] = useState<ConversionResult | null>(null);
   const [error, setError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -47,17 +47,17 @@ export default function Elegant() {
     
     try {
       const buffer = await file.arrayBuffer();
-      const bytesForWorker = new Uint8Array(buffer.slice(0));
-      const bytesForPreview = new Uint8Array(buffer);
+      // Zero-copy transferable array buffer
+      const bytesForWorker = new Uint8Array(buffer);
       
       const ext = file.name.split('.').pop()?.toLowerCase() || 'txt';
       const format = formatFromExtension(ext) || null;
       
-      // Parse in background Web Worker off the main UI thread with fallback
+      // Parse in background Web Worker off the main UI thread with zero-copy buffer transfer
       const { result, stats } = await parseDocumentInWorker(bytesForWorker, format, file.name);
       
       prevResultRef.current = result;
-      setSourceData({ name: file.name, content: bytesForPreview });
+      setSourceData({ name: file.name, file });
       setConversionResult(result);
       setParseStats(stats);
     } catch (err: any) {
@@ -325,6 +325,7 @@ export default function Elegant() {
                   {leftTab === 'preview' ? (
                     <DocumentPreview 
                       name={sourceData.name} 
+                      file={sourceData.file}
                       content={sourceData.content} 
                       className="flex-grow" 
                       onScrollRatioChange={handleLeftScrollRatioChange}

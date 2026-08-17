@@ -9,7 +9,7 @@ import { parseDocumentInWorker } from '../utils/workerManager';
 
 function App() {
   const [isProcessing, setIsProcessing] = useState(false);
-  const [sourceData, setSourceData] = useState<{name: string, content: Uint8Array} | null>(null);
+  const [sourceData, setSourceData] = useState<{name: string, file?: File, content?: Uint8Array} | null>(null);
   const [conversionResult, setConversionResult] = useState<ConversionResult | null>(null);
   const [error, setError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -144,17 +144,17 @@ function App() {
     
     try {
       const buffer = await file.arrayBuffer();
-      const bytesForWorker = new Uint8Array(buffer.slice(0));
-      const bytesForPreview = new Uint8Array(buffer);
+      // Zero-copy transferable array buffer
+      const bytesForWorker = new Uint8Array(buffer);
       
       const ext = file.name.split('.').pop()?.toLowerCase() || 'txt';
       const format = formatFromExtension(ext) || null;
       
-      // Execute in Web Worker thread with automatic main thread fallback
+      // Execute in Web Worker thread with zero-copy buffer transfer
       const { result } = await parseDocumentInWorker(bytesForWorker, format, file.name);
       
       prevResultRef.current = result;
-      setSourceData({ name: file.name, content: bytesForPreview });
+      setSourceData({ name: file.name, file });
       setConversionResult(result);
       
       // Start adaptive streaming animation
@@ -383,12 +383,13 @@ function App() {
                     </span>
                   </div>
                   <span className="text-secondary font-label-caps text-[11px]">
-                    {(sourceData.content.length / 1024).toFixed(1)} KB
+                    {(((sourceData.file ? sourceData.file.size : sourceData.content?.length) || 0) / 1024).toFixed(1)} KB
                   </span>
                 </div>
                 <div className="flex-grow overflow-hidden relative flex flex-col bg-white/5" id="input-viewer">
                   <DocumentPreview 
                     name={sourceData.name} 
+                    file={sourceData.file}
                     content={sourceData.content} 
                     className="flex-grow" 
                     onScrollRatioChange={handleLeftScrollRatioChange}

@@ -3,7 +3,8 @@ import { renderAsync } from 'docx-preview';
 
 interface DocumentPreviewProps {
   name: string;
-  content: Uint8Array;
+  content?: Uint8Array;
+  file?: File;
   className?: string;
   onScrollRatioChange?: (ratio: number) => void;
   externalScrollRatio?: number | null;
@@ -12,6 +13,7 @@ interface DocumentPreviewProps {
 export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ 
   name, 
   content, 
+  file,
   className = '',
   onScrollRatioChange,
   externalScrollRatio
@@ -20,7 +22,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   const [textContent, setTextContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [zoom, setZoom] = useState<number>(85); // Default to 85% for optimal sidebar fit
+  const [zoom, setZoom] = useState<number>(85);
 
   const docxContainerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -33,80 +35,117 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     setTextContent(null);
 
     let url: string | null = null;
+    let isCancelled = false;
 
-    try {
-      if (ext === 'pdf') {
-        const blob = new Blob([content as unknown as BlobPart], { type: 'application/pdf' });
-        url = URL.createObjectURL(blob);
-        setObjectUrl(url);
-        setLoading(false);
-      } else if (['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif', 'bmp'].includes(ext)) {
-        const mime = ext === 'svg' ? 'image/svg+xml' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
-        const blob = new Blob([content as unknown as BlobPart], { type: mime });
-        url = URL.createObjectURL(blob);
-        setObjectUrl(url);
-        setLoading(false);
-      } else if (['txt', 'md', 'json', 'csv', 'html', 'htm', 'xml', 'js', 'ts', 'jsx', 'tsx', 'py', 'css', 'yaml', 'yml'].includes(ext)) {
-        const MAX_PREVIEW_BYTES = 300 * 1024; // 300KB
-        const decoder = new TextDecoder('utf-8');
-        if (content.length > MAX_PREVIEW_BYTES) {
-          const slice = content.subarray(0, MAX_PREVIEW_BYTES);
-          const partialText = decoder.decode(slice);
-          setTextContent(
-            partialText + `\n\n--- [Preview truncated: Showing first 300 KB of ${(content.length / 1024 / 1024).toFixed(2)} MB file. Full content will be parsed into Markdown on the right pane] ---`
-          );
-        } else {
-          const text = decoder.decode(content);
-          setTextContent(text);
-        }
-        setLoading(false);
-      } else if (ext === 'docx') {
-        const isVeryLargeDoc = content.length > 5 * 1024 * 1024; // > 5MB
-        setTimeout(() => {
-          if (!docxContainerRef.current) {
+    const setupPreview = async () => {
+      try {
+        if (ext === 'pdf') {
+          // Zero-copy disk pointer if File is available
+          if (file) {
+            url = URL.createObjectURL(file);
+          } else if (content) {
+            const blob = new Blob([content as unknown as BlobPart], { type: 'application/pdf' });
+            url = URL.createObjectURL(blob);
+          }
+          if (!isCancelled && url) setObjectUrl(url);
+          setLoading(false);
+        } else if (['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif', 'bmp'].includes(ext)) {
+          if (file) {
+            url = URL.createObjectURL(file);
+          } else if (content) {
+            const mime = ext === 'svg' ? 'image/svg+xml' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+            const blob = new Blob([content as unknown as BlobPart], { type: mime });
+            url = URL.createObjectURL(blob);
+          }
+          if (!isCancelled && url) setObjectUrl(url);
+          setLoading(false);
+        } else if (['txt', 'md', 'json', 'csv', 'html', 'htm', 'xml', 'js', 'ts', 'jsx', 'tsx', 'py', 'css', 'yaml', 'yml'].includes(ext)) {
+          const MAX_PREVIEW_BYTES = 200 * 1024; // 200KB
+          let text = '';
+          const totalSize = file ? file.size : (content?.length || 0);
+
+          if (file) {
+            const slice = file.slice(0, MAX_PREVIEW_BYTES);
+            text = await slice.text();
+          } else if (content) {
+            const decoder = new TextDecoder('utf-8');
+            const slice = content.length > MAX_PREVIEW_BYTES ? content.subarray(0, MAX_PREVIEW_BYTES) : content;
+            text = decoder.decode(slice);
+          }
+
+          if (totalSize > MAX_PREVIEW_BYTES) {
+            text += `\n\n--- [Preview truncated: Showing first 200 KB of ${(totalSize / 1024 / 1024).toFixed(2)} MB file. Full document is available in Markdown on the right] ---`;
+          }
+
+          if (!isCancelled) {
+            setTextContent(text);
+            setLoading(false);
+          }
+        } else if (ext === 'docx') {
+          const totalSize = file ? file.size : (content?.length || 0);
+          const isVeryLargeDoc = totalSize > 4 * 1024 * 1024; // > 4MB
+
+          const docxBuffer = file ? await file.arrayBuffer() : content?.buffer;
+          if (!docxBuffer || isCancelled) {
             setLoading(false);
             return;
           }
-          try {
-            docxContainerRef.current.innerHTML = '';
-            renderAsync(content.buffer, docxContainerRef.current, undefined, {
-              inWrapper: false,
-              ignoreWidth: true,
-              ignoreHeight: true,
-              ignoreFonts: isVeryLargeDoc,
-              breakPages: !isVeryLargeDoc, // Avoid heavy page break layout on 100+ page books
-              useBase64URL: true,
-              className: 'docx-rendered',
-            })
-              .then(() => {
-                setLoading(false);
+
+          setTimeout(() => {
+            if (!docxContainerRef.current || isCancelled) {
+              setLoading(false);
+              return;
+            }
+            try {
+              docxContainerRef.current.innerHTML = '';
+              renderAsync(docxBuffer, docxContainerRef.current, undefined, {
+                inWrapper: false,
+                ignoreWidth: true,
+                ignoreHeight: true,
+                ignoreFonts: isVeryLargeDoc,
+                breakPages: !isVeryLargeDoc,
+                useBase64URL: true,
+                className: 'docx-rendered',
               })
-              .catch((err) => {
-                console.warn('Docx preview render warning:', err);
-                setError('Full visual preview skipped for large book. Markdown is ready on the right.');
+                .then(() => {
+                  if (!isCancelled) setLoading(false);
+                })
+                .catch((err) => {
+                  console.warn('Docx preview warning:', err);
+                  if (!isCancelled) {
+                    setError('Visual Word preview skipped for performance. Clean Markdown is ready on the right.');
+                    setLoading(false);
+                  }
+                });
+            } catch (e) {
+              console.warn('Docx error:', e);
+              if (!isCancelled) {
+                setError('Visual Word preview unavailable for this document.');
                 setLoading(false);
-              });
-          } catch (e) {
-            console.warn('Docx sync preview error:', e);
-            setError('Visual Word preview unavailable for this document.');
-            setLoading(false);
-          }
-        }, 50);
-      } else {
-        setLoading(false);
+              }
+            }
+          }, 30);
+        } else {
+          setLoading(false);
+        }
+      } catch (err: any) {
+        console.error('Preview error:', err);
+        if (!isCancelled) {
+          setError(err?.message || 'Preview generation failed.');
+          setLoading(false);
+        }
       }
-    } catch (err: any) {
-      console.error('Preview error:', err);
-      setError(err?.message || 'Preview generation failed.');
-      setLoading(false);
-    }
+    };
+
+    setupPreview();
 
     return () => {
+      isCancelled = true;
       if (url) {
         URL.revokeObjectURL(url);
       }
     };
-  }, [name, content, ext]);
+  }, [name, content, file, ext]);
 
   // Synchronize incoming external scroll position
   useEffect(() => {
@@ -318,7 +357,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       <div>
         <div className="font-headline-md text-base text-on-surface font-semibold">{name}</div>
         <div className="font-label-caps text-xs text-outline mt-1">
-          {ext.toUpperCase()} File • {(content.length / 1024).toFixed(1)} KB
+          {ext.toUpperCase()} File • {(((file ? file.size : content?.length) || 0) / 1024).toFixed(1)} KB
         </div>
       </div>
       <div className="max-w-xs text-xs font-body-rt text-on-surface-variant/70 leading-relaxed bg-white/5 p-3 rounded-lg border border-white/5">

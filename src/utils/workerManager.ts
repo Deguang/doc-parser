@@ -85,7 +85,7 @@ export async function parseDocumentInWorker(
             format,
             filename,
           };
-          worker.postMessage(payload);
+          worker.postMessage(payload, [bytes.buffer]);
         } catch (err: any) {
           pendingRequests.delete(id);
           reject(err);
