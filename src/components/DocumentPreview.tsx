@@ -37,9 +37,18 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ name, content,
         setObjectUrl(url);
         setLoading(false);
       } else if (['txt', 'md', 'json', 'csv', 'html', 'htm', 'xml', 'js', 'ts', 'jsx', 'tsx', 'py', 'css', 'yaml', 'yml'].includes(ext)) {
+        const MAX_PREVIEW_BYTES = 300 * 1024; // 300KB
         const decoder = new TextDecoder('utf-8');
-        const text = decoder.decode(content);
-        setTextContent(text);
+        if (content.length > MAX_PREVIEW_BYTES) {
+          const slice = content.subarray(0, MAX_PREVIEW_BYTES);
+          const partialText = decoder.decode(slice);
+          setTextContent(
+            partialText + `\n\n--- [Preview truncated: Showing first 300 KB of ${(content.length / 1024 / 1024).toFixed(2)} MB file. Full content will be parsed into Markdown on the right pane] ---`
+          );
+        } else {
+          const text = decoder.decode(content);
+          setTextContent(text);
+        }
         setLoading(false);
       } else if (ext === 'docx') {
         if (docxContainerRef.current) {

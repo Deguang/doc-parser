@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import init, { formatFromExtension } from '@firecrawl/anydoc-wasm';
 import { DocumentPreview } from '../components/DocumentPreview';
-import { processDocument, createZipExport, type ConversionResult } from '../utils/documentConverter';
+import { createZipExport, type ConversionResult } from '../utils/documentConverter';
+import { parseDocumentInWorker } from '../utils/workerManager';
 
 function App() {
   const [isReady, setIsReady] = useState(false);
@@ -55,28 +56,36 @@ function App() {
     setIsStreaming(true);
     setStreamingText([]);
     let index = 0;
+    // Adapt chunk size dynamically to document length to avoid DOM node explosion
+    const chunkSize = Math.max(1, Math.min(30, Math.floor(text.length / 200)));
     
     const streamNext = () => {
       if (index < text.length) {
-        let char = text.charAt(index);
-        let colorClass = 'text-on-surface';
-        if (char === '#' || char === '*' || char === '>') colorClass = 'text-tertiary font-bold';
+        const nextBatch: {char: string, colorClass: string}[] = [];
+        const targetIndex = Math.min(index + chunkSize, text.length);
+
+        for (let i = index; i < targetIndex; i++) {
+          let char = text.charAt(i);
+          let colorClass = 'text-on-surface';
+          if (char === '#' || char === '*' || char === '>') colorClass = 'text-tertiary font-bold';
+          nextBatch.push({ char, colorClass });
+        }
         
-        setStreamingText(prev => [...prev, { char, colorClass }]);
+        setStreamingText(prev => [...prev, ...nextBatch]);
         
         if (outputRef.current) {
           outputRef.current.scrollTop = outputRef.current.scrollHeight;
         }
         
-        index++;
-        setTimeout(streamNext, 4); // Fast streaming speed
+        index = targetIndex;
+        setTimeout(streamNext, 8);
       } else {
         setIsStreaming(false);
         setIsProcessing(false);
       }
     };
     
-    setTimeout(streamNext, 600);
+    setTimeout(streamNext, 400);
   };
 
   const handleFile = async (file: File) => {
@@ -87,15 +96,18 @@ function App() {
     
     try {
       const buffer = await file.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      setSourceData({ name: file.name, content: bytes });
+      const bytesForWorker = new Uint8Array(buffer.slice(0));
+      const bytesForPreview = new Uint8Array(buffer);
+      setSourceData({ name: file.name, content: bytesForPreview });
       
       const ext = file.name.split('.').pop()?.toLowerCase() || 'txt';
       const format = formatFromExtension(ext) || null;
-      const result = processDocument(bytes, format);
+      
+      // Execute in non-blocking Web Worker thread
+      const { result } = await parseDocumentInWorker(bytesForWorker, format, file.name);
       setConversionResult(result);
       
-      // Start streaming animation with clean markdown
+      // Start adaptive streaming animation
       streamText(result.rawMarkdownWithRelativePaths || result.markdown);
     } catch (err: any) {
       console.error(err);

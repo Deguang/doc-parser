@@ -2,7 +2,8 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import init, { formatFromExtension } from '@firecrawl/anydoc-wasm';
 import MarkStream from 'markstream-react';
 import { DocumentPreview } from '../components/DocumentPreview';
-import { processDocument, createZipExport, type ConversionResult } from '../utils/documentConverter';
+import { createZipExport, type ConversionResult } from '../utils/documentConverter';
+import { parseDocumentInWorker } from '../utils/workerManager';
 
 export default function Elegant() {
   const [isReady, setIsReady] = useState(false);
@@ -34,21 +35,19 @@ export default function Elegant() {
     
     try {
       const buffer = await file.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      setSourceData({ name: file.name, content: bytes });
+      // Keep a copy for UI preview, pass slice to worker
+      const bytesForWorker = new Uint8Array(buffer.slice(0));
+      const bytesForPreview = new Uint8Array(buffer);
+      setSourceData({ name: file.name, content: bytesForPreview });
       
       const ext = file.name.split('.').pop()?.toLowerCase() || 'txt';
       const format = formatFromExtension(ext) || null;
       
-      const startTime = performance.now();
-      const result = processDocument(bytes, format);
-      const endTime = performance.now();
+      // Parse in background Web Worker off the main UI thread
+      const { result, stats } = await parseDocumentInWorker(bytesForWorker, format, file.name);
       
       setConversionResult(result);
-      setParseStats({
-        timeMs: Math.round(endTime - startTime),
-        sizeBytes: bytes.length
-      });
+      setParseStats(stats);
     } catch (err: any) {
       console.error(err);
       if (err.message?.includes('memory') || err.message?.includes('allocation')) {
