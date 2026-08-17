@@ -18,11 +18,8 @@ export default function Elegant() {
   const [rawMarkdownMode, setRawMarkdownMode] = useState<'base64' | 'relative'>('relative');
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSyncScroll, setIsSyncScroll] = useState<boolean>(true);
-  const [leftScrollRatio, setLeftScrollRatio] = useState<number | null>(null);
 
   const rightOutputRef = useRef<HTMLDivElement>(null);
-  const isUpdatingRightRef = useRef(false);
-  const isUpdatingLeftRef = useRef(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prevResultRef = useRef<ConversionResult | null>(null);
@@ -145,31 +142,50 @@ export default function Elegant() {
     }
   };
 
-  const handleLeftScrollRatioChange = (ratio: number) => {
-    if (!isSyncScroll || isUpdatingRightRef.current || !rightOutputRef.current) return;
-    const target = rightOutputRef.current;
-    const maxScroll = target.scrollHeight - target.clientHeight;
-    if (maxScroll > 0) {
-      isUpdatingLeftRef.current = true;
-      target.scrollTop = ratio * maxScroll;
-      setTimeout(() => {
-        isUpdatingLeftRef.current = false;
-      }, 50);
-    }
-  };
+  const leftScrollRef = useRef<HTMLDivElement | null>(null);
+  const isSyncingRef = useRef<boolean>(false);
 
-  const handleOutputScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (!isSyncScroll || isUpdatingLeftRef.current) return;
-    const target = e.currentTarget;
-    const maxScroll = target.scrollHeight - target.clientHeight;
-    if (maxScroll > 0) {
-      isUpdatingRightRef.current = true;
-      setLeftScrollRatio(target.scrollTop / maxScroll);
-      setTimeout(() => {
-        isUpdatingRightRef.current = false;
-      }, 50);
-    }
-  };
+  // High-performance direct DOM scroll sync without React re-renders
+  useEffect(() => {
+    if (!isSyncScroll) return;
+
+    const leftEl = leftScrollRef.current;
+    const rightEl = rightOutputRef.current;
+
+    const handleLeftScroll = () => {
+      if (isSyncingRef.current || !rightEl || !leftEl) return;
+      const leftMax = leftEl.scrollHeight - leftEl.clientHeight;
+      const rightMax = rightEl.scrollHeight - rightEl.clientHeight;
+      if (leftMax > 0 && rightMax > 0) {
+        isSyncingRef.current = true;
+        rightEl.scrollTop = (leftEl.scrollTop / leftMax) * rightMax;
+        requestAnimationFrame(() => {
+          isSyncingRef.current = false;
+        });
+      }
+    };
+
+    const handleRightScroll = () => {
+      if (isSyncingRef.current || !leftEl || !rightEl) return;
+      const leftMax = leftEl.scrollHeight - leftEl.clientHeight;
+      const rightMax = rightEl.scrollHeight - rightEl.clientHeight;
+      if (leftMax > 0 && rightMax > 0) {
+        isSyncingRef.current = true;
+        leftEl.scrollTop = (rightEl.scrollTop / rightMax) * leftMax;
+        requestAnimationFrame(() => {
+          isSyncingRef.current = false;
+        });
+      }
+    };
+
+    leftEl?.addEventListener('scroll', handleLeftScroll, { passive: true });
+    rightEl?.addEventListener('scroll', handleRightScroll, { passive: true });
+
+    return () => {
+      leftEl?.removeEventListener('scroll', handleLeftScroll);
+      rightEl?.removeEventListener('scroll', handleRightScroll);
+    };
+  }, [isSyncScroll, sourceData, leftTab]);
 
   const resetView = () => {
     revokeConversionAssets(prevResultRef.current);
@@ -328,17 +344,12 @@ export default function Elegant() {
                       file={sourceData.file}
                       content={sourceData.content} 
                       className="flex-grow" 
-                      onScrollRatioChange={handleLeftScrollRatioChange}
-                      externalScrollRatio={leftScrollRatio}
+                      scrollRef={leftScrollRef}
                     />
                   ) : (
                     <div 
+                      ref={leftScrollRef}
                       className="p-6 overflow-y-auto font-body-rt text-body-rt flex-grow"
-                      onScroll={handleLeftScrollRatioChange ? (e) => {
-                        const target = e.currentTarget;
-                        const maxScroll = target.scrollHeight - target.clientHeight;
-                        if (maxScroll > 0) handleLeftScrollRatioChange(target.scrollTop / maxScroll);
-                      } : undefined}
                     >
                       <MarkdownRenderer content={conversionResult?.markdown || '*(No content)*'} />
                     </div>
@@ -373,7 +384,6 @@ export default function Elegant() {
                 </div>
                 <div 
                   ref={rightOutputRef}
-                  onScroll={handleOutputScroll}
                   className="p-6 overflow-y-auto bg-background/80 flex-grow relative"
                 >
                   <VirtualCodeViewer 

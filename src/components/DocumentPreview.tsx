@@ -6,8 +6,7 @@ interface DocumentPreviewProps {
   content?: Uint8Array;
   file?: File;
   className?: string;
-  onScrollRatioChange?: (ratio: number) => void;
-  externalScrollRatio?: number | null;
+  scrollRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export const DocumentPreview: React.FC<DocumentPreviewProps> = ({ 
@@ -15,8 +14,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   content, 
   file,
   className = '',
-  onScrollRatioChange,
-  externalScrollRatio
+  scrollRef,
 }) => {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
@@ -25,9 +23,15 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   const [zoom, setZoom] = useState<number>(85);
 
   const docxContainerRef = useRef<HTMLDivElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const isSelfScrollingRef = useRef(false);
+  const internalScrollRef = useRef<HTMLDivElement>(null);
   const ext = name.split('.').pop()?.toLowerCase() || '';
+
+  const setScrollContainer = (el: HTMLDivElement | null) => {
+    internalScrollRef.current = el;
+    if (scrollRef) {
+      (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+    }
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -147,30 +151,6 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     };
   }, [name, content, file, ext]);
 
-  // Synchronize incoming external scroll position
-  useEffect(() => {
-    if (externalScrollRatio !== null && externalScrollRatio !== undefined && scrollContainerRef.current) {
-      if (isSelfScrollingRef.current) return;
-      const target = scrollContainerRef.current;
-      const maxScroll = target.scrollHeight - target.clientHeight;
-      if (maxScroll > 0) {
-        target.scrollTop = externalScrollRatio * maxScroll;
-      }
-    }
-  }, [externalScrollRatio]);
-
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
-    const maxScroll = target.scrollHeight - target.clientHeight;
-    if (maxScroll > 0 && onScrollRatioChange) {
-      isSelfScrollingRef.current = true;
-      onScrollRatioChange(target.scrollTop / maxScroll);
-      setTimeout(() => {
-        isSelfScrollingRef.current = false;
-      }, 50);
-    }
-  };
-
   const ZoomToolbar = () => (
     <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-surface-container-high/90 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 shadow-lg z-20">
       <button
@@ -225,8 +205,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           </div>
         )}
         <div 
-          ref={scrollContainerRef}
-          onScroll={handleScroll}
+          ref={setScrollContainer}
           className="flex-grow overflow-auto p-4 flex justify-center"
         >
           <div 
@@ -302,8 +281,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   if (['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif', 'bmp'].includes(ext) && objectUrl) {
     return (
       <div 
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
+        ref={setScrollContainer}
         className={`w-full h-full relative flex items-center justify-center p-6 bg-surface-container-low/40 rounded-lg overflow-auto ${className}`}
       >
         <div 
@@ -326,8 +304,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     return (
       <div className={`w-full h-full relative overflow-hidden bg-surface-container-low/40 rounded-lg ${className}`}>
         <div 
-          ref={scrollContainerRef}
-          onScroll={handleScroll}
+          ref={setScrollContainer}
           className="w-full h-full overflow-auto p-4 font-code-md text-xs leading-relaxed text-on-surface/90"
         >
           <pre 

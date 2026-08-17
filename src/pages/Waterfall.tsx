@@ -16,10 +16,6 @@ function App() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [outputMode, setOutputMode] = useState<'stream' | 'preview'>('stream');
   const [isSyncScroll, setIsSyncScroll] = useState<boolean>(true);
-  const [leftScrollRatio, setLeftScrollRatio] = useState<number | null>(null);
-  
-  const isUpdatingRightRef = useRef(false);
-  const isUpdatingLeftRef = useRef(false);
 
   const [streamedContent, setStreamedContent] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -246,31 +242,50 @@ function App() {
     setIsStreaming(false);
   };
 
-  const handleLeftScrollRatioChange = (ratio: number) => {
-    if (!isSyncScroll || isUpdatingRightRef.current || !outputRef.current) return;
-    const target = outputRef.current;
-    const maxScroll = target.scrollHeight - target.clientHeight;
-    if (maxScroll > 0) {
-      isUpdatingLeftRef.current = true;
-      target.scrollTop = ratio * maxScroll;
-      setTimeout(() => {
-        isUpdatingLeftRef.current = false;
-      }, 50);
-    }
-  };
+  const leftScrollRef = useRef<HTMLDivElement | null>(null);
+  const isSyncingRef = useRef<boolean>(false);
 
-  const handleOutputScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (!isSyncScroll || isUpdatingLeftRef.current) return;
-    const target = e.currentTarget;
-    const maxScroll = target.scrollHeight - target.clientHeight;
-    if (maxScroll > 0) {
-      isUpdatingRightRef.current = true;
-      setLeftScrollRatio(target.scrollTop / maxScroll);
-      setTimeout(() => {
-        isUpdatingRightRef.current = false;
-      }, 50);
-    }
-  };
+  // High-performance direct DOM scroll sync without React re-renders
+  useEffect(() => {
+    if (!isSyncScroll) return;
+
+    const leftEl = leftScrollRef.current;
+    const rightEl = outputRef.current;
+
+    const handleLeftScroll = () => {
+      if (isSyncingRef.current || !rightEl || !leftEl) return;
+      const leftMax = leftEl.scrollHeight - leftEl.clientHeight;
+      const rightMax = rightEl.scrollHeight - rightEl.clientHeight;
+      if (leftMax > 0 && rightMax > 0) {
+        isSyncingRef.current = true;
+        rightEl.scrollTop = (leftEl.scrollTop / leftMax) * rightMax;
+        requestAnimationFrame(() => {
+          isSyncingRef.current = false;
+        });
+      }
+    };
+
+    const handleRightScroll = () => {
+      if (isSyncingRef.current || !leftEl || !rightEl) return;
+      const leftMax = leftEl.scrollHeight - leftEl.clientHeight;
+      const rightMax = rightEl.scrollHeight - rightEl.clientHeight;
+      if (leftMax > 0 && rightMax > 0) {
+        isSyncingRef.current = true;
+        leftEl.scrollTop = (rightEl.scrollTop / rightMax) * leftMax;
+        requestAnimationFrame(() => {
+          isSyncingRef.current = false;
+        });
+      }
+    };
+
+    leftEl?.addEventListener('scroll', handleLeftScroll, { passive: true });
+    rightEl?.addEventListener('scroll', handleRightScroll, { passive: true });
+
+    return () => {
+      leftEl?.removeEventListener('scroll', handleLeftScroll);
+      rightEl?.removeEventListener('scroll', handleRightScroll);
+    };
+  }, [isSyncScroll, sourceData, outputMode]);
 
   return (
     <div className="flex-1 flex flex-col w-full h-[calc(100vh-64px)] overflow-hidden antialiased">
@@ -392,8 +407,7 @@ function App() {
                     file={sourceData.file}
                     content={sourceData.content} 
                     className="flex-grow" 
-                    onScrollRatioChange={handleLeftScrollRatioChange}
-                    externalScrollRatio={leftScrollRatio}
+                    scrollRef={leftScrollRef}
                   />
                   {isStreaming && <div className="doc-scanner" style={{opacity: 1}}></div>}
                 </div>
@@ -451,7 +465,6 @@ function App() {
                   className="p-6 overflow-y-auto font-body-rt text-body-rt flex-grow relative bg-background/80" 
                   id="markdown-output" 
                   ref={outputRef}
-                  onScroll={handleOutputScroll}
                 >
                   {outputMode === 'preview' ? (
                     <div className="w-full">
