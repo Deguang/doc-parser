@@ -117,13 +117,26 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
       // Check if the user scrolled past this page while we were fetching it
       if (intendedVisibility.current.get(pageNum) === false) {
         try { page.cleanup(); } catch (e) {}
+        pageProxies.current.delete(pageNum);
         return; // Abort rendering
+      }
+
+      const pageDiv = pageRefs.current.get(pageNum);
+      if (!pageDiv) return;
+
+      let canvas = canvasRefs.current.get(pageNum);
+      if (!canvas) {
+        canvas = document.createElement('canvas');
+        canvas.className = "block absolute inset-0 m-auto";
+        canvasRefs.current.set(pageNum, canvas);
+        // Prepend so the page number badge stays on top
+        pageDiv.insertBefore(canvas, pageDiv.firstChild);
       }
 
       const dpr = window.devicePixelRatio || 1;
       const viewport = page.getViewport({ scale: zoom * dpr });
       
-      const context = canvas.getContext('2d');
+      const context = canvas.getContext('2d', { alpha: false });
       if (!context) return;
 
       canvas.width = viewport.width;
@@ -138,7 +151,6 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
       const intrinsicViewport = page.getViewport({ scale: 1.0 });
       pageSizesRef.current.set(pageNum, { width: intrinsicViewport.width, height: intrinsicViewport.height });
 
-      const pageDiv = pageRefs.current.get(pageNum);
       if (pageDiv) {
         pageDiv.style.width = `${cssViewport.width}px`;
         pageDiv.style.height = `${cssViewport.height}px`;
@@ -158,9 +170,13 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
       
       // Final check in case it became invisible during rendering
       if (intendedVisibility.current.get(pageNum) === false) {
-        canvas.width = 0;
-        canvas.height = 0;
+        canvas.width = 1;
+        canvas.height = 1;
+        context.clearRect(0,0,1,1);
+        canvas.parentNode?.removeChild(canvas);
+        canvasRefs.current.delete(pageNum);
         try { page.cleanup(); } catch (e) {}
+        pageProxies.current.delete(pageNum);
         return;
       }
 
@@ -180,12 +196,17 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
       } catch (e) {}
       renderTasks.current.delete(pageNum);
     }
+    
     const canvas = canvasRefs.current.get(pageNum);
     if (canvas) {
-      // Clear GPU texture memory by setting dimension to 0
-      canvas.width = 0;
-      canvas.height = 0;
+      canvas.width = 1;
+      canvas.height = 1;
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.clearRect(0,0,1,1);
+      canvas.parentNode?.removeChild(canvas);
+      canvasRefs.current.delete(pageNum);
     }
+
     const page = pageProxies.current.get(pageNum);
     if (page) {
       try { page.cleanup(); } catch (e) {}
@@ -271,17 +292,10 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
                 }
               }}
               data-page-number={pageNum}
-              className="relative shadow-md bg-white rounded-sm flex items-center justify-center"
+              className="relative shadow-md bg-white rounded-sm flex items-center justify-center overflow-hidden"
               style={{ width: pw, height: ph }}
             >
-              <canvas 
-                ref={el => {
-                  if (el) canvasRefs.current.set(pageNum, el);
-                  else canvasRefs.current.delete(pageNum);
-                }}
-                className="block"
-              />
-              <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-white/80 px-1.5 py-0.5 rounded shadow-sm">
+              <div className="absolute bottom-2 right-2 text-[10px] text-gray-500 bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded shadow-sm z-10 pointer-events-none">
                 {pageNum}
               </div>
             </div>
