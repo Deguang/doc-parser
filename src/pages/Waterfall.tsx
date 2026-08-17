@@ -52,12 +52,15 @@ function App() {
     };
   }, []);
 
+  const fullTextRef = useRef<string>('');
+
   const streamText = (text: string) => {
     setIsStreaming(true);
     setStreamingText([]);
+    fullTextRef.current = text;
     let index = 0;
-    // Adapt chunk size dynamically to document length to avoid DOM node explosion
-    const chunkSize = Math.max(1, Math.min(30, Math.floor(text.length / 200)));
+    // Fast batching: complete entire document animation in ~0.5s - 0.8s max
+    const chunkSize = Math.max(15, Math.min(150, Math.floor(text.length / 40)));
     
     const streamNext = () => {
       if (index < text.length) {
@@ -78,14 +81,30 @@ function App() {
         }
         
         index = targetIndex;
-        setTimeout(streamNext, 8);
+        // High-speed frame-based streaming
+        requestAnimationFrame(streamNext);
       } else {
         setIsStreaming(false);
         setIsProcessing(false);
       }
     };
     
-    setTimeout(streamNext, 400);
+    setTimeout(streamNext, 50);
+  };
+
+  const skipStreaming = () => {
+    if (!fullTextRef.current) return;
+    const text = fullTextRef.current;
+    const allChars: {char: string, colorClass: string}[] = [];
+    for (let i = 0; i < text.length; i++) {
+      let char = text.charAt(i);
+      let colorClass = 'text-on-surface';
+      if (char === '#' || char === '*' || char === '>') colorClass = 'text-tertiary font-bold';
+      allChars.push({ char, colorClass });
+    }
+    setStreamingText(allChars);
+    setIsStreaming(false);
+    setIsProcessing(false);
   };
 
   const handleFile = async (file: File) => {
@@ -309,7 +328,19 @@ function App() {
               {/* Output Pane */}
               <div className="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden">
                 <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50">
-                  <span className="font-label-caps text-label-caps text-secondary">Markdown Output</span>
+                  <div className="flex items-center gap-3">
+                    <span className="font-label-caps text-label-caps text-secondary">Markdown Output</span>
+                    {isStreaming && (
+                      <button
+                        onClick={skipStreaming}
+                        className="px-2 py-0.5 rounded bg-primary/20 hover:bg-primary/30 text-primary text-[11px] font-label-caps flex items-center gap-1 transition-all active:scale-95"
+                        title="Show full markdown instantly"
+                      >
+                        <span className="material-symbols-outlined text-xs">fast_forward</span>
+                        Skip Animation
+                      </button>
+                    )}
+                  </div>
                   <button onClick={copyToClipboard} className="text-outline hover:text-secondary transition-colors p-1" title="Copy to clipboard">
                     <span className="material-symbols-outlined text-sm">content_copy</span>
                   </button>
