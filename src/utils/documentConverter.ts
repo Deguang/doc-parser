@@ -5,7 +5,8 @@ export interface ProcessedAsset {
   id: number;
   mediaType: string;
   filename: string;
-  data: Uint8Array;
+  data?: Uint8Array;
+  blob?: Blob;
   blobUrl?: string;
 }
 
@@ -81,14 +82,16 @@ export function revokeConversionAssets(result: ConversionResult | null | undefin
       }
       asset.blobUrl = undefined;
     }
+    asset.blob = undefined;
+    asset.data = undefined;
   }
 }
 
 /**
- * Generates the full Base64-embedded markdown string in a single fast pass,
- * avoiding multi-pass string allocations on 10MB+ book files.
+ * Generates the full Base64-embedded markdown string asynchronously on demand,
+ * reading on-demand from lightweight Blobs and discarding heap memory.
  */
-export function getBase64Markdown(result: ConversionResult): string {
+export async function getBase64Markdown(result: ConversionResult): Promise<string> {
   if (!result.assets || result.assets.length === 0) {
     return result.rawMarkdownWithRelativePaths || result.markdown;
   }
@@ -96,10 +99,17 @@ export function getBase64Markdown(result: ConversionResult): string {
   // Pre-calculate data URIs into a lookup map
   const uriMap = new Map<string, string>();
   for (const asset of result.assets) {
-    const base64Data = uint8ArrayToBase64(asset.data);
-    const dataUri = `data:${asset.mediaType};base64,${base64Data}`;
-    uriMap.set(asset.filename, dataUri);
-    uriMap.set(`./${asset.filename}`, dataUri);
+    let bytes = asset.data;
+    if (!bytes && asset.blob) {
+      const buf = await asset.blob.arrayBuffer();
+      bytes = new Uint8Array(buf);
+    }
+    if (bytes) {
+      const base64Data = uint8ArrayToBase64(bytes);
+      const dataUri = `data:${asset.mediaType};base64,${base64Data}`;
+      uriMap.set(asset.filename, dataUri);
+      uriMap.set(`./${asset.filename}`, dataUri);
+    }
   }
 
   // Single-pass replacement over the entire markdown document
@@ -114,7 +124,8 @@ export function getBase64Markdown(result: ConversionResult): string {
 }
 
 /**
- * Attaches fresh, revokable Blob URLs strictly on the main thread.
+ * Attaches fresh, revokable Blob URLs strictly on the main thread
+ * and immediately purges raw Uint8Arrays from JavaScript heap.
  */
 export function attachMainThreadBlobUrls(result: ConversionResult): ConversionResult {
   if (!result || !result.assets || result.assets.length === 0) return result;
@@ -123,10 +134,15 @@ export function attachMainThreadBlobUrls(result: ConversionResult): ConversionRe
   for (const asset of result.assets) {
     if (!asset.blobUrl && typeof URL !== 'undefined' && typeof Blob !== 'undefined') {
       try {
-        const blob = new Blob([asset.data as unknown as BlobPart], { type: asset.mediaType });
-        asset.blobUrl = URL.createObjectURL(blob);
-        blobMap.set(asset.filename, asset.blobUrl);
-        blobMap.set(`./${asset.filename}`, asset.blobUrl);
+        if (asset.data) {
+          const blob = new Blob([asset.data as unknown as BlobPart], { type: asset.mediaType });
+          asset.blob = blob;
+          asset.blobUrl = URL.createObjectURL(blob);
+          blobMap.set(asset.filename, asset.blobUrl);
+          blobMap.set(`./${asset.filename}`, asset.blobUrl);
+          // Purge raw array buffer to free gigabytes of V8 heap memory immediately
+          asset.data = undefined;
+        }
       } catch (e) {
         // fallback
       }
@@ -348,9 +364,12 @@ export async function createZipExport(
     if (imgFolder) {
       for (const asset of assets) {
         const cleanName = asset.filename.replace(/^images\//, '');
-        imgFolder.file(cleanName, asset.data, {
-          compression: 'STORE' // 10x faster, zero CPU spike
-        });
+        const imgData = asset.blob ? await asset.blob.arrayBuffer() : asset.data;
+        if (imgData) {
+          imgFolder.file(cleanName, imgData, {
+            compression: 'STORE' // 10x faster, zero CPU spike
+          });
+        }
       }
     }
   }

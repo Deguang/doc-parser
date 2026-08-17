@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { formatFromExtension } from '@firecrawl/anydoc-wasm';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { VirtualCodeViewer } from '../components/VirtualCodeViewer';
@@ -89,26 +89,19 @@ export default function Elegant() {
     }
   }, []);
 
-  // Compute Base64 only on-demand
-  const rawBase64Markdown = useMemo(() => {
-    if (!conversionResult || rawMarkdownMode !== 'base64') return '';
-    return getBase64Markdown(conversionResult);
-  }, [conversionResult, rawMarkdownMode]);
-
-  const copyToClipboard = () => {
+  const copyToClipboard = async () => {
     if (!conversionResult) return;
     const textToCopy = rawMarkdownMode === 'base64' 
-      ? (rawBase64Markdown || getBase64Markdown(conversionResult))
+      ? await getBase64Markdown(conversionResult)
       : conversionResult.rawMarkdownWithRelativePaths;
     if (!textToCopy) return;
-    navigator.clipboard.writeText(textToCopy).then(() => {
-      alert('Copied to clipboard!');
-    });
+    await navigator.clipboard.writeText(textToCopy);
+    alert('Copied to clipboard!');
   };
 
-  const downloadMarkdownBase64 = () => {
+  const downloadMarkdownBase64 = async () => {
     if (!conversionResult || !sourceData) return;
-    const base64Text = getBase64Markdown(conversionResult);
+    const base64Text = await getBase64Markdown(conversionResult);
     const blob = new Blob([base64Text], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -387,7 +380,7 @@ export default function Elegant() {
                   className="p-6 overflow-y-auto bg-background/80 flex-grow relative"
                 >
                   <VirtualCodeViewer 
-                    content={rawMarkdownMode === 'base64' ? rawBase64Markdown : (conversionResult?.rawMarkdownWithRelativePaths || '')} 
+                    content={conversionResult?.rawMarkdownWithRelativePaths || ''} 
                   />
                 </div>
               </div>

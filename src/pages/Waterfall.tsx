@@ -182,9 +182,9 @@ function App() {
     }
   }, []);
 
-  const downloadMarkdownBase64 = () => {
+  const downloadMarkdownBase64 = async () => {
     if (!conversionResult || !sourceData) return;
-    const base64Text = getBase64Markdown(conversionResult);
+    const base64Text = await getBase64Markdown(conversionResult);
     const blob = new Blob([base64Text], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -218,12 +218,11 @@ function App() {
     }
   };
 
-  const copyToClipboard = () => {
+  const copyToClipboard = async () => {
     if (!conversionResult) return;
-    const textToCopy = getBase64Markdown(conversionResult);
-    navigator.clipboard.writeText(textToCopy).then(() => {
-      alert('Copied to clipboard!');
-    });
+    const textToCopy = await getBase64Markdown(conversionResult);
+    await navigator.clipboard.writeText(textToCopy);
+    alert('Copied to clipboard!');
   };
 
   const resetView = () => {
