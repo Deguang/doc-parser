@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import init, { formatFromExtension } from '@firecrawl/anydoc-wasm';
+import MarkStream from 'markstream-react';
 import { DocumentPreview } from '../components/DocumentPreview';
 import { createZipExport, type ConversionResult } from '../utils/documentConverter';
 import { parseDocumentInWorker } from '../utils/workerManager';
@@ -12,6 +13,7 @@ function App() {
   const [error, setError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [outputMode, setOutputMode] = useState<'stream' | 'preview'>('preview');
   
   const [streamingText, setStreamingText] = useState<{char: string, colorClass: string}[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -327,31 +329,67 @@ function App() {
               
               {/* Output Pane */}
               <div className="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden">
-                <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50">
-                  <div className="flex items-center gap-3">
-                    <span className="font-label-caps text-label-caps text-secondary">Markdown Output</span>
-                    {isStreaming && (
+                <div className="px-4 py-3 border-b border-white/10 flex justify-between items-center bg-surface-container-low/50 gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-label-caps text-label-caps text-secondary mr-1">Markdown Output</span>
+                    <div className="flex items-center gap-1 bg-black/20 p-0.5 rounded-lg border border-white/5 text-xs font-label-caps">
+                      <button
+                        onClick={() => setOutputMode('preview')}
+                        className={`px-2.5 py-1 rounded transition-all flex items-center gap-1 ${
+                          outputMode === 'preview'
+                            ? 'bg-secondary/20 text-secondary border border-secondary/30 shadow-sm font-semibold'
+                            : 'text-on-surface-variant hover:text-on-surface'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-xs">preview</span>
+                        Rendered View
+                      </button>
+                      <button
+                        onClick={() => setOutputMode('stream')}
+                        className={`px-2.5 py-1 rounded transition-all flex items-center gap-1 ${
+                          outputMode === 'stream'
+                            ? 'bg-primary/20 text-primary border border-primary/30 shadow-sm font-semibold'
+                            : 'text-on-surface-variant hover:text-on-surface'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-xs">waterfall_chart</span>
+                        Waterfall Code
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    {isStreaming && outputMode === 'stream' && (
                       <button
                         onClick={skipStreaming}
                         className="px-2 py-0.5 rounded bg-primary/20 hover:bg-primary/30 text-primary text-[11px] font-label-caps flex items-center gap-1 transition-all active:scale-95"
                         title="Show full markdown instantly"
                       >
                         <span className="material-symbols-outlined text-xs">fast_forward</span>
-                        Skip Animation
+                        Skip
                       </button>
                     )}
+                    <button onClick={copyToClipboard} className="text-outline hover:text-secondary transition-colors p-1" title="Copy to clipboard">
+                      <span className="material-symbols-outlined text-sm">content_copy</span>
+                    </button>
                   </div>
-                  <button onClick={copyToClipboard} className="text-outline hover:text-secondary transition-colors p-1" title="Copy to clipboard">
-                    <span className="material-symbols-outlined text-sm">content_copy</span>
-                  </button>
                 </div>
-                <div className="p-8 overflow-y-auto font-code-md text-code-md bg-background/80 flex-grow relative streaming-text" id="markdown-output" ref={outputRef}>
-                  {(isProcessing && streamingText.length === 0) && (
-                    <span className="text-outline animate-pulse inline-block mb-4">Initializing Lumina-v2 Engine...</span>
+                
+                <div className="p-8 overflow-y-auto font-body-rt text-body-rt flex-grow relative bg-background/80" id="markdown-output" ref={outputRef}>
+                  {outputMode === 'preview' ? (
+                    <div className="streaming-text text-on-surface/90">
+                      <MarkStream content={conversionResult?.markdown || ''} />
+                    </div>
+                  ) : (
+                    <div className="font-code-md text-code-md streaming-text">
+                      {(isProcessing && streamingText.length === 0) && (
+                        <span className="text-outline animate-pulse inline-block mb-4">Initializing Lumina-v2 Engine...</span>
+                      )}
+                      {streamingText.map((item, i) => (
+                        item.char === '\n' ? <br key={i} /> : <span key={i} className={item.colorClass}>{item.char}</span>
+                      ))}
+                    </div>
                   )}
-                  {streamingText.map((item, i) => (
-                    item.char === '\n' ? <br key={i} /> : <span key={i} className={item.colorClass}>{item.char}</span>
-                  ))}
                 </div>
               </div>
             </div>

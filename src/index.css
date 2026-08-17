@@ -151,3 +151,16 @@ body {
 .reveal-delay-2 { animation-delay: 0.2s; }
 .reveal-delay-3 { animation-delay: 0.3s; }
 @keyframes revealUp { to { opacity: 1; transform: translateY(0); } }
+
+/* Markdown Rendered Image Styles */
+.markdown-rendered-content img,
+.streaming-text img,
+.markstream-container img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 16px 0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: block;
+}
