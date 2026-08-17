@@ -47,12 +47,12 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
     let docProxy: pdfjsLib.PDFDocumentProxy | null = null;
     let loadingTask: any = null;
 
-    const loadPdf = async () => {
+    const loadDoc = async () => {
       try {
-        loadingTask = pdfjsLib.getDocument(src);
+        loadingTask = pdfjsLib.getDocument({ url: src });
         docProxy = await loadingTask.promise;
         if (!active) {
-          docProxy.destroy();
+          (docProxy as any).destroy();
           return;
         }
         
@@ -61,20 +61,19 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
         
         if (docProxy.numPages > 0) {
           const firstPage = await docProxy.getPage(1);
-          const viewport = firstPage.getViewport({ scale: 1 });
-          setBaseDimensions({
-            width: viewport.width,
-            height: viewport.height
-          });
-          firstPage.cleanup();
+          const viewport = firstPage.getViewport({ scale: 1.0 });
+          setBaseDimensions({ width: viewport.width, height: viewport.height });
         }
-      } catch (err) {
-        console.error('Error loading PDF:', err);
+        
+      } catch (err: any) {
+        if (err.name !== 'RenderingCancelledException' && active) {
+          console.error('Failed to load PDF:', err);
+        }
       }
     };
 
     if (src) {
-      loadPdf();
+      loadDoc();
     }
 
     return () => {
@@ -83,27 +82,16 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
         try { loadingTask.destroy(); } catch (e) {}
       }
       if (docProxy) {
-        docProxy.destroy();
+        (docProxy as any).destroy();
       }
-    };
-  }, [src]);
-
-  // Clean up all canvases on unmount
-  useEffect(() => {
-    return () => {
-      renderTasks.current.forEach(task => {
-        try { task.cancel(); } catch (e) {}
-      });
-      canvasRefs.current.forEach(canvas => {
-        canvas.width = 0;
-        canvas.height = 0;
-      });
+      
+      // Cleanup all cached pages on unmount
       pageProxies.current.forEach(page => {
         try { page.cleanup(); } catch (e) {}
       });
       pageProxies.current.clear();
     };
-  }, []);
+  }, [src]);
 
   const intendedVisibility = useRef<Map<number, boolean>>(new Map());
 
@@ -146,9 +134,10 @@ export const PdfVirtualViewer: React.FC<PdfVirtualViewerProps> = ({ src, classNa
       canvas.style.width = `${cssViewport.width}px`;
       canvas.style.height = `${cssViewport.height}px`;
 
-      const renderContext = {
+      const renderContext: any = {
         canvasContext: context,
-        viewport: viewport
+        viewport: viewport,
+        canvas: canvas
       };
 
       const renderTask = page.render(renderContext);

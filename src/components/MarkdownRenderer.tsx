@@ -15,7 +15,6 @@ marked.setOptions({
 const CHUNK_SIZE_BYTES = 80 * 1024; // 80KB per virtualized chunk (~30 pages)
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className = '' }) => {
-  const totalLength = content?.length || 0;
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Split content into clean paragraph-boundary chunks

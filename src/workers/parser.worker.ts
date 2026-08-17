@@ -53,11 +53,11 @@ self.onmessage = async (e: MessageEvent<WorkerParseRequest>) => {
     // Collect all asset ArrayBuffers for zero-copy transfer to main thread.
     // Without this, postMessage does a structured clone that DOUBLES the memory
     // (e.g. 2GB of images cloned into another 2GB on the main thread).
-    const transferables: ArrayBuffer[] = [];
+    const transferables: Transferable[] = [];
     if (result.assets) {
       for (const asset of result.assets) {
         if (asset.data && asset.data.buffer) {
-          transferables.push(asset.data.buffer);
+          transferables.push(asset.data.buffer as Transferable);
         }
       }
     }
