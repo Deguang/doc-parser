@@ -213,12 +213,47 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   if (ext === 'pdf') {
     if (objectUrl) {
       return (
-        <div className={`w-full h-full relative bg-surface-container-low ${className}`}>
-          <iframe
-            src={`${objectUrl}#toolbar=0&navpanes=0&view=FitH`}
-            className="w-full h-full border-none rounded-lg"
-            title={`PDF Preview: ${name}`}
-          />
+        <div className={`w-full h-full relative bg-[#0d1117] flex flex-col ${className}`}>
+          <div className="flex-1 w-full h-full relative overflow-hidden">
+            <object
+              data={objectUrl}
+              type="application/pdf"
+              className="w-full h-full border-none rounded-lg"
+            >
+              <iframe
+                src={`${objectUrl}#view=FitH`}
+                className="w-full h-full border-none rounded-lg"
+                title={`PDF Preview: ${name}`}
+              >
+                <div className="p-8 flex flex-col items-center justify-center text-center text-slate-400 gap-3">
+                  <span className="material-symbols-outlined text-3xl text-blue-400">picture_as_pdf</span>
+                  <div className="text-sm">PDF embedded viewer is blocked by browser security policy.</div>
+                  <a
+                    href={objectUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-primary-glow px-3 py-1.5 rounded-lg text-xs font-medium text-white inline-flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-xs">open_in_new</span>
+                    Open PDF in New Window
+                  </a>
+                </div>
+              </iframe>
+            </object>
+          </div>
+          
+          <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-[#161d2a]/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/[0.08] shadow-md z-20">
+            <a
+              href={objectUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-slate-300 hover:text-white flex items-center gap-1 font-medium transition-colors"
+              title="Open full PDF in a separate tab"
+            >
+              <span className="material-symbols-outlined text-xs">open_in_new</span>
+              Pop-out PDF
+            </a>
+          </div>
         </div>
       );
     }
