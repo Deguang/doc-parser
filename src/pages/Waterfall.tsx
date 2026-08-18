@@ -4,6 +4,7 @@ import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { VirtualCodeViewer } from '../components/VirtualCodeViewer';
 import { DocumentPreview } from '../components/DocumentPreview';
 import { WasmProgressBar } from '../components/WasmProgressBar';
+import { FloatingChat } from '../components/FloatingChat';
 import { createZipExport, getBase64Markdown, revokeConversionAssets, type ConversionResult } from '../utils/documentConverter';
 import { parseDocumentInWorker } from '../utils/workerManager';
 
@@ -592,6 +593,8 @@ function App() {
                 </div>
               </div>
             </div>
+            
+            <FloatingChat markdownContent={conversionResult?.rawMarkdownWithRelativePaths || null} />
           </section>
         )}
       </main>
