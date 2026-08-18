@@ -4,6 +4,9 @@ import { pipeline, env } from '@xenova/transformers';
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 
+// Use HF Mirror for regions where huggingface.co is blocked (e.g. China)
+env.remoteHost = 'https://hf-mirror.com';
+
 let embedder: any = null;
 
 // Use a fast, multilingual or English model. 
@@ -26,6 +29,9 @@ export interface EmbeddingProgress {
   file?: string;
 }
 
+// Throttle mechanism to prevent thousands of messages from freezing the UI thread
+let lastProgressTime = 0;
+
 self.onmessage = async (event: MessageEvent<EmbeddingRequest>) => {
   const { id, chunks } = event.data;
 
@@ -34,7 +40,10 @@ self.onmessage = async (event: MessageEvent<EmbeddingRequest>) => {
       self.postMessage({ id, status: 'init' } as EmbeddingProgress);
       embedder = await pipeline('feature-extraction', MODEL_NAME, {
         progress_callback: (info: any) => {
-          if (info.status === 'progress') {
+          const now = Date.now();
+          // Throttle progress updates to at most 10 FPS (100ms) to avoid React re-render freezes
+          if (info.status === 'progress' && (now - lastProgressTime > 100 || info.progress === 100)) {
+            lastProgressTime = now;
             self.postMessage({
               id,
               status: 'downloading',
@@ -49,6 +58,7 @@ self.onmessage = async (event: MessageEvent<EmbeddingRequest>) => {
     self.postMessage({ id, status: 'processing', current: 0, total: chunks.length } as EmbeddingProgress);
 
     const results = [];
+    let lastChunkTime = 0;
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
       // Generate embeddings
@@ -58,8 +68,12 @@ self.onmessage = async (event: MessageEvent<EmbeddingRequest>) => {
         embedding: Array.from(output.data) as number[]
       });
 
-      // Report progress every chunk
-      self.postMessage({ id, status: 'processing', current: i + 1, total: chunks.length } as EmbeddingProgress);
+      // Report progress every chunk, throttled to 10 FPS
+      const now = Date.now();
+      if (now - lastChunkTime > 100 || i === chunks.length - 1) {
+        lastChunkTime = now;
+        self.postMessage({ id, status: 'processing', current: i + 1, total: chunks.length } as EmbeddingProgress);
+      }
     }
 
     self.postMessage({
