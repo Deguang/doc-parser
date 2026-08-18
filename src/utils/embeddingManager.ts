@@ -1,4 +1,4 @@
-import { type EmbeddingRequest, type EmbeddingProgress } from '../workers/embedding.worker';
+import { type EmbeddingRequest, type EmbeddingProgress } from './workerTypes';
 
 let worker: Worker | null = null;
 
@@ -28,7 +28,8 @@ export function generateEmbeddings(
 
       if (e.data.status === 'done') {
         w.removeEventListener('message', handleMessage);
-        resolve(e.data.result!);
+        // We received the final embeddings array
+        resolve(e.data.embeddings!);
       } else if (e.data.status === 'error') {
         w.removeEventListener('message', handleMessage);
         reject(new Error(e.data.error || 'Embedding generation failed'));

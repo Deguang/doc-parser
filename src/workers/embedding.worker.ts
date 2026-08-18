@@ -1,33 +1,14 @@
-import { pipeline, env } from '@xenova/transformers';
+import { pipeline, env, type FeatureExtractionPipeline } from '@xenova/transformers';
+import { type EmbeddingRequest, type EmbeddingProgress } from '../utils/workerTypes';
 
 // Skip local check, download directly from HuggingFace Hub
 env.allowLocalModels = false;
 env.useBrowserCache = true;
-
 // Use HF Mirror for regions where huggingface.co is blocked (e.g. China)
 env.remoteHost = 'https://hf-mirror.com';
 
-let embedder: any = null;
-
-// Use a fast, multilingual or English model. 
-// Xenova/all-MiniLM-L6-v2 is standard, Xenova/bge-small-zh-v1.5 is great for Chinese.
+let embedder: FeatureExtractionPipeline | null = null;
 const MODEL_NAME = 'Xenova/all-MiniLM-L6-v2';
-
-export interface EmbeddingRequest {
-  id: string;
-  chunks: { id: string; text: string }[];
-}
-
-export interface EmbeddingProgress {
-  id: string;
-  status: 'init' | 'downloading' | 'processing' | 'done' | 'error';
-  progress?: number;
-  total?: number;
-  current?: number;
-  result?: { id: string; embedding: number[] }[];
-  error?: string;
-  file?: string;
-}
 
 // Throttle mechanism to prevent thousands of messages from freezing the UI thread
 let lastProgressTime = 0;
@@ -46,16 +27,15 @@ self.onmessage = async (event: MessageEvent<EmbeddingRequest>) => {
             lastProgressTime = now;
             self.postMessage({
               id,
-              status: 'downloading',
-              progress: info.progress,
-              file: info.file
+              status: 'progress',
+              progress: info.progress
             } as EmbeddingProgress);
           }
         }
       });
     }
 
-    self.postMessage({ id, status: 'processing', current: 0, total: chunks.length } as EmbeddingProgress);
+    self.postMessage({ id, status: 'progress', current: 0, total: chunks.length } as EmbeddingProgress);
 
     const results = [];
     let lastChunkTime = 0;
@@ -72,14 +52,14 @@ self.onmessage = async (event: MessageEvent<EmbeddingRequest>) => {
       const now = Date.now();
       if (now - lastChunkTime > 100 || i === chunks.length - 1) {
         lastChunkTime = now;
-        self.postMessage({ id, status: 'processing', current: i + 1, total: chunks.length } as EmbeddingProgress);
+        self.postMessage({ id, status: 'progress', current: i + 1, total: chunks.length } as EmbeddingProgress);
       }
     }
 
     self.postMessage({
       id,
       status: 'done',
-      result: results
+      embeddings: results
     } as EmbeddingProgress);
 
   } catch (error: any) {

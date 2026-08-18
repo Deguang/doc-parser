@@ -1,5 +1,5 @@
 import { attachMainThreadBlobUrls, type ConversionResult } from './documentConverter';
-import { type WorkerParseRequest, type WorkerParseResponse } from '../workers/parser.worker';
+import { type WorkerParseRequest, type WorkerParseResponse } from './workerTypes';
 import type { Format } from '@firecrawl/anydoc-wasm';
 
 export async function parseDocumentInWorker(

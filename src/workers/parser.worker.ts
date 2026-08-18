@@ -1,6 +1,7 @@
-import init, { type Format } from '@firecrawl/anydoc-wasm';
+import init from '@firecrawl/anydoc-wasm';
 import wasmUrl from '@firecrawl/anydoc-wasm/anydoc_wasm_bg.wasm?url';
-import { processDocument, type ConversionResult } from '../utils/documentConverter';
+import { processDocument } from '../utils/documentConverter';
+import { type WorkerParseRequest, type WorkerParseResponse } from '../utils/workerTypes';
 
 let isWasmInitialized = false;
 
@@ -9,24 +10,6 @@ async function ensureInit() {
     await init(wasmUrl);
     isWasmInitialized = true;
   }
-}
-
-export interface WorkerParseRequest {
-  id: string;
-  bytes: Uint8Array;
-  format: Format | null;
-  filename: string;
-}
-
-export interface WorkerParseResponse {
-  id: string;
-  success: boolean;
-  result?: ConversionResult;
-  stats?: {
-    timeMs: number;
-    sizeBytes: number;
-  };
-  error?: string;
 }
 
 self.onmessage = async (e: MessageEvent<WorkerParseRequest>) => {
