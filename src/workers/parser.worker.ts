@@ -1,23 +1,12 @@
-import init from '@firecrawl/anydoc-wasm';
-import wasmUrl from '@firecrawl/anydoc-wasm/anydoc_wasm_bg.wasm?url';
-import { processDocument } from '../utils/documentConverter';
+import { processDocument, ensureWasmInit } from '../utils/documentConverter';
 import { type WorkerParseRequest, type WorkerParseResponse } from '../utils/workerTypes';
-
-let isWasmInitialized = false;
-
-async function ensureInit() {
-  if (!isWasmInitialized) {
-    await init(wasmUrl);
-    isWasmInitialized = true;
-  }
-}
 
 self.onmessage = async (e: MessageEvent<WorkerParseRequest>) => {
   const { id, bytes, format } = e.data;
 
   try {
     const startTime = performance.now();
-    await ensureInit();
+    await ensureWasmInit();
 
     // Run heavy AST extraction and parsing off the main UI thread
     const result = processDocument(bytes, format);

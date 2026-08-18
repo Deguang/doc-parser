@@ -55,11 +55,9 @@ export async function parseDocumentInWorker(
     // Lazy-load WASM only if Worker path fails — keeps main bundle ~100KB lighter
     console.warn('Worker execution failed, falling back to main thread:', workerErr);
     const startTime = performance.now();
-    const { default: init } = await import('@firecrawl/anydoc-wasm');
-    const wasmUrl = (await import('@firecrawl/anydoc-wasm/anydoc_wasm_bg.wasm?url')).default;
-    await init(wasmUrl);
-
-    const { processDocument } = await import('./documentConverter');
+    const { processDocument, ensureWasmInit } = await import('./documentConverter');
+    await ensureWasmInit();
+    
     const result = processDocument(bytes, format);
     attachMainThreadBlobUrls(result);
     const endTime = performance.now();

@@ -1,5 +1,15 @@
-import { toDocument, toMarkdownBytes, type Document, type Block, type Inline, type Format } from '@firecrawl/anydoc-wasm';
+import init, { toDocument, toMarkdownBytes, type Document, type Block, type Inline, type Format } from '@firecrawl/anydoc-wasm';
+import wasmUrl from '@firecrawl/anydoc-wasm/anydoc_wasm_bg.wasm?url';
 import JSZip from 'jszip';
+
+let isWasmInitialized = false;
+
+export async function ensureWasmInit() {
+  if (!isWasmInitialized) {
+    await init(wasmUrl);
+    isWasmInitialized = true;
+  }
+}
 
 export interface ProcessedAsset {
   id: number;
