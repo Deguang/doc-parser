@@ -225,6 +225,33 @@ function App() {
     alert('Copied to clipboard!');
   };
 
+  const downloadRAGChunks = async () => {
+    if (!conversionResult || !sourceData) return;
+    try {
+      const { chunkMarkdown } = await import('../utils/chunker');
+      const chunks = chunkMarkdown(conversionResult.rawMarkdownWithRelativePaths);
+      
+      const payload = JSON.stringify({
+        source: sourceData.name,
+        total_chunks: chunks.length,
+        chunks: chunks
+      }, null, 2);
+      
+      const blob = new Blob([payload], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${sourceData.name.replace(/\.[^/.]+$/, "")}_rag_chunks.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      alert('Failed to generate RAG chunks.');
+    }
+  };
+
   const resetView = () => {
     isCancelledRef.current = true;
     if (streamRafId.current !== null) {
@@ -372,6 +399,14 @@ function App() {
                 </button>
                 <button className="glass-panel text-on-surface-variant hover:text-primary px-3 py-1.5 rounded-lg font-label-caps text-xs flex items-center gap-1 transition-all duration-200 active:scale-95 magnetic-btn" onClick={resetView}>
                   <span className="material-symbols-outlined text-sm">restart_alt</span> New
+                </button>
+                <div className="w-px h-6 bg-white/10 mx-1" />
+                <button 
+                  onClick={downloadRAGChunks} 
+                  className="glass-panel text-tertiary hover:text-tertiary px-3 py-1.5 rounded-lg font-label-caps text-xs flex items-center gap-1 transition-all duration-200 active:scale-95 border-tertiary/30 magnetic-btn"
+                  title="Export Semantic Chunks for RAG and Vector Databases"
+                >
+                  <span className="material-symbols-outlined text-sm">data_object</span> RAG Chunks
                 </button>
                 <button 
                   onClick={downloadMarkdownBase64} 
