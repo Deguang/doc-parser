@@ -126,6 +126,58 @@ export default function Elegant() {
     }
   };
 
+  const [embeddingProgress, setEmbeddingProgress] = useState<any>(null);
+
+  const downloadVectorEmbeddings = async () => {
+    if (!conversionResult || !sourceData) return;
+    try {
+      const { chunkMarkdown } = await import('../utils/chunker');
+      const { generateEmbeddings } = await import('../utils/embeddingManager');
+      
+      const chunks = chunkMarkdown(conversionResult.rawMarkdownWithRelativePaths);
+      if (chunks.length === 0) return;
+
+      setEmbeddingProgress({ status: 'init', progress: 0 });
+
+      const embedInput = chunks.map(c => ({ id: c.id, text: c.content }));
+      
+      const embeddings = await generateEmbeddings(embedInput, (prog) => {
+        setEmbeddingProgress(prog);
+      });
+
+      // Merge embeddings back into chunks
+      const embedMap = new Map(embeddings.map(e => [e.id, e.embedding]));
+      const finalChunks = chunks.map(c => ({
+        ...c,
+        embedding: embedMap.get(c.id) || []
+      }));
+
+      const payload = JSON.stringify({
+        source: sourceData.name,
+        model: 'Xenova/all-MiniLM-L6-v2',
+        dimensions: 384,
+        total_chunks: finalChunks.length,
+        chunks: finalChunks
+      }, null, 2);
+      
+      const blob = new Blob([payload], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${sourceData.name.replace(/\.[^/.]+$/, "")}_vector_db.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      setEmbeddingProgress(null);
+    } catch (e: any) {
+      console.error(e);
+      alert('Failed to generate Vector Embeddings: ' + e.message);
+      setEmbeddingProgress(null);
+    }
+  };
+
   const downloadMarkdownBase64 = async () => {
     if (!conversionResult || !sourceData) return;
     const base64Text = await getBase64Markdown(conversionResult);
@@ -320,6 +372,17 @@ export default function Elegant() {
                   title="Export Semantic Chunks for RAG and Vector Databases"
                 >
                   <span className="material-symbols-outlined text-sm">data_object</span> RAG Chunks
+                </button>
+                <button 
+                  onClick={downloadVectorEmbeddings} 
+                  disabled={embeddingProgress !== null}
+                  className="glass-panel text-fuchsia-400 hover:text-fuchsia-300 px-3 py-1.5 rounded-lg font-label-caps text-xs flex items-center gap-1 transition-all duration-200 active:scale-95 border-fuchsia-400/30"
+                  title="Generate Local Vector Embeddings using transformers.js"
+                >
+                  <span className="material-symbols-outlined text-sm">
+                    {embeddingProgress ? 'progress_activity' : 'memory'}
+                  </span> 
+                  {embeddingProgress ? `Embedding... ${embeddingProgress.progress ? Math.round(embeddingProgress.progress) + '%' : (embeddingProgress.current ? `${embeddingProgress.current}/${embeddingProgress.total}` : '')}` : 'Vector DB'}
                 </button>
                 <button 
                   onClick={downloadMarkdownBase64} 
