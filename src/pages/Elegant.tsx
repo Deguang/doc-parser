@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { formatFromExtension } from '@firecrawl/anydoc-wasm';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { VirtualCodeViewer } from '../components/VirtualCodeViewer';
 import { DocumentPreview } from '../components/DocumentPreview';
@@ -49,7 +48,8 @@ export default function Elegant() {
       const bytesForWorker = new Uint8Array(buffer);
       
       const ext = file.name.split('.').pop()?.toLowerCase() || 'txt';
-      const format = formatFromExtension(ext) || null;
+      const VALID_FORMATS = ["doc", "docx", "odt", "pdf", "ppt", "pptx", "rtf", "epub", "xlsx", "ods", "odp", "csv"] as const;
+      const format: any = VALID_FORMATS.includes(ext as any) ? ext : null;
       
       // Parse in background Web Worker off the main UI thread with zero-copy buffer transfer
       const { result, stats } = await parseDocumentInWorker(bytesForWorker, format, file.name);
