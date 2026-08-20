@@ -41,7 +41,11 @@ export function FloatingChat({ markdownContent }: { markdownContent: string | nu
         setIsIndexed(true);
         setMessages([{ role: 'assistant', content: 'Local knowledge base initialized! Ask me anything about this document.' }]);
       } catch (err: any) {
-        setMessages([{ role: 'system', content: `Initialization failed: ${err.message}` }]);
+        const isNetworkError = err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError');
+        const helpMsg = isNetworkError 
+          ? `Initialization failed: Network error. If you are in a restricted region (e.g. China), please ensure your proxy/VPN is enabled (Global mode) to download models from Hugging Face.`
+          : `Initialization failed: ${err.message}`;
+        setMessages([{ role: 'system', content: helpMsg }]);
       } finally {
         setIsInitializing(false);
       }
